@@ -113,10 +113,14 @@ async function loadVersions() {
 }
 
 function updateVersionBadges(data) {
-    document.getElementById("v6-active").textContent = data.v6.active || "-";
-    document.getElementById("v7-fixed").textContent = data.v7.activeFixed || "-";
-    document.getElementById("v7-latest").textContent =
-        data.v7.activeLatest || "-";
+    // Очищаем версии для отображения в баджах
+    const v6Active = data.v6.active ? data.v6.active.replace(/[^\d.-]/g, "").trim() : "-";
+    const v7Fixed = data.v7.activeFixed ? data.v7.activeFixed.replace(/[^\d.-]/g, "").trim() : "-";
+    const v7Latest = data.v7.activeLatest ? data.v7.activeLatest.replace(/[^\d.-]/g, "").trim() : "-";
+
+    document.getElementById("v6-active").textContent = v6Active;
+    document.getElementById("v7-fixed").textContent = v7Fixed;
+    document.getElementById("v7-latest").textContent = v7Latest;
 }
 
 function updateVersionTable(branch, versions, ...active) {
@@ -124,13 +128,16 @@ function updateVersionTable(branch, versions, ...active) {
     tbody.innerHTML = "";
 
     versions.forEach((version) => {
-        const isActive = active.includes(version);
+        // Очищаем версию для сравнения
+        const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
+        const cleanActive = active.map(a => a ? a.replace(/[^\d.-]/g, "").trim() : a);
+        const isActive = cleanActive.includes(cleanVersion);
         const row = document.createElement("tr");
 
         if (branch === "v6") {
             row.innerHTML = renderV6Row(version, isActive);
         } else {
-            row.innerHTML = renderV7Row(version, isActive, active);
+            row.innerHTML = renderV7Row(version, isActive, cleanActive);
         }
 
         tbody.appendChild(row);
@@ -138,6 +145,7 @@ function updateVersionTable(branch, versions, ...active) {
 }
 
 function renderV6Row(version, isActive) {
+    const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
     const statusBadge = `<span class="status-badge ${
         isActive ? "active" : "inactive"
         }">
@@ -145,23 +153,26 @@ function renderV6Row(version, isActive) {
   </span>`;
 
     const deleteBtn = !isActive
-        ? `<button class="btn-delete" onclick="removeVersion('${version}')">Delete</button>`
+        ? `<button class="btn-delete" onclick="removeVersion('${cleanVersion}')">Delete</button>`
         : "";
 
     return `
-    <td title="${version}" style="cursor: pointer;" onclick="copyVersionToClipboard('${version}')"><strong>📋 ${version
-        }</strong></td>
+    <td title="${version}" style="cursor: pointer;" onclick="copyVersionToClipboard('${cleanVersion}')">
+      <strong data-version="${cleanVersion}">📋 ${version}</strong>
+    </td>
     <td>${statusBadge}</td>
     <td>
-      <button class="btn-set" onclick="setVersion('${version}')">Set</button>
+      <button class="btn-set" onclick="setVersion('${cleanVersion}')">Set</button>
       ${deleteBtn}
     </td>
   `;
 }
 
 function renderV7Row(version, isActive, active) {
-    const isFixed = version === active[0];
-    const isLatest = version === active[1];
+    // Очищаем версию от эмодзи для v7 тоже
+    const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
+    const isFixed = cleanVersion === active[0];
+    const isLatest = cleanVersion === active[1];
     const type = isFixed ? "Fixed" : isLatest ? "Latest" : "";
 
     const statusBadge = `<span class="status-badge ${
@@ -171,26 +182,33 @@ function renderV7Row(version, isActive, active) {
   </span>`;
 
     const deleteBtn = !isActive
-        ? `<button class="btn-delete" onclick="removeVersion('${version}')">Delete</button>`
+        ? `<button class="btn-delete" onclick="removeVersion('${cleanVersion}')">Delete</button>`
         : "";
 
     return `
-    <td><strong>${version}</strong></td>
+    <td title="${version}" style="cursor: pointer;" onclick="copyVersionToClipboard('${cleanVersion}')">
+      <strong data-version="${cleanVersion}">${version}</strong>
+    </td>
     <td>${type}</td>
     <td>${statusBadge}</td>
     <td>
-      <button class="btn-set" onclick="setVersion('${version}')">Set</button>
+      <button class="btn-set" onclick="setVersion('${cleanVersion}')">Set</button>
       ${deleteBtn}
     </td>
   `;
 }
 
 async function setVersion(version) {
+    // Очищаем версию от эмодзи
+    const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
+
     try {
-        const response = await fetch(`${API_BASE}/set-active-version/${version}`,
+        const response = await fetch(
+            `${API_BASE}/set-active-version/${encodeURIComponent(cleanVersion)}`,
             {
                 method: "POST"
-            });
+            }
+        );
 
         if (!response.ok) {
             const error = await response.json();
@@ -198,7 +216,7 @@ async function setVersion(version) {
             return;
         }
 
-        showToast(`Version ${version} set as active`, "success");
+        showToast(`Version ${cleanVersion} set as active`, "success");
         await loadVersions();
     } catch (error) {
         console.error("Set version error:", error);
@@ -207,13 +225,18 @@ async function setVersion(version) {
 }
 
 async function removeVersion(version) {
-    if (!confirm(`Delete version ${version}?`)) return;
+    // Очищаем версию от эмодзи
+    const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
+
+    if (!confirm(`Delete version ${cleanVersion}?`)) return;
 
     try {
-        const response = await fetch(`${API_BASE}/remove-version/${version}`,
+        const response = await fetch(
+            `${API_BASE}/remove-version/${encodeURIComponent(cleanVersion)}`,
             {
                 method: "DELETE"
-            });
+            }
+        );
 
         if (!response.ok) {
             const error = await response.json();
@@ -221,7 +244,7 @@ async function removeVersion(version) {
             return;
         }
 
-        showToast(`Version ${version} removed`, "success");
+        showToast(`Version ${cleanVersion} removed`, "success");
         await loadVersions();
     } catch (error) {
         console.error("Remove version error:", error);
@@ -282,15 +305,15 @@ function populateVersionSelect() {
     const allVersions = new Set();
 
     document
-        .querySelectorAll("#v6-list tr td:first-child strong")
+        .querySelectorAll("#v6-list tr td:first-child strong[data-version]")
         .forEach((el) => {
-            allVersions.add(el.textContent);
+            allVersions.add(el.getAttribute("data-version"));
         });
 
     document
-        .querySelectorAll("#v7-list tr td:first-child strong")
+        .querySelectorAll("#v7-list tr td:first-child strong[data-version]")
         .forEach((el) => {
-            allVersions.add(el.textContent);
+            allVersions.add(el.getAttribute("data-version"));
         });
 
     const currentValue = select.value;
@@ -666,14 +689,19 @@ async function loadVersionChangelog() {
         return;
     }
 
+    // Очищаем версию от эмодзи и лишних пробелов
+    const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
+
     const contentDiv = document.getElementById("version-changelog-content");
     contentDiv.innerHTML = '<p style="color: #999;">Loading...</p>';
 
     try {
-        const response = await fetch(`${API_BASE}/changelog/${version}`);
+        const response = await fetch(
+            `${API_BASE}/changelog/${encodeURIComponent(cleanVersion)}`
+        );
 
         if (response.status === 404) {
-            contentDiv.innerHTML = `<p style="color: #999;">Changelog not available for version ${version}</p>`;
+            contentDiv.innerHTML = `<p style="color: #999;">Changelog not available for version ${cleanVersion}</p>`;
             return;
         }
 
@@ -926,7 +954,12 @@ function formatDate(dateString) {
 }
 
 function formatTimeSpan(milliseconds) {
-    if (milliseconds === null || milliseconds === undefined || isNaN(milliseconds) || milliseconds <= 0) {
+    if (
+        milliseconds === null ||
+            milliseconds === undefined ||
+            isNaN(milliseconds) ||
+            milliseconds <= 0
+    ) {
         return "Now";
     }
 
