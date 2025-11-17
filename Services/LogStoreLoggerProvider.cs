@@ -23,7 +23,7 @@ public class LogStoreLoggerProvider(ILogStore logStore) : ILoggerProvider
 
     private sealed class LogStoreLogger(string categoryName, ILogStore store) : ILogger
     {
-        public IDisposable BeginScope<TState>(TState state)
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull
         {
             return NullScope.Instance;
         }
@@ -58,7 +58,6 @@ public class LogStoreLoggerProvider(ILogStore logStore) : ILoggerProvider
                 LogLevel.Warning => "Warning",
                 LogLevel.Information => "Information",
                 LogLevel.Debug => "Debug",
-                LogLevel.Trace => "Trace",
                 _ => "Information"
             };
 

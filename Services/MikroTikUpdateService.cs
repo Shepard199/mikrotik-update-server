@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 
 namespace MikroTik.UpdateServer.Services;
@@ -87,8 +88,9 @@ public class MikroTikUpdateService
                 if (arches is {Length: > 0})
                 {
                     var normalized = arches
-                        .Select(a => a?.Trim().ToLowerInvariant())
+                        .Select(a => a.Trim())
                         .Where(a => !string.IsNullOrWhiteSpace(a))
+                        .Select(a => a.ToLowerInvariant())
                         .Distinct()
                         .ToArray();
 
@@ -96,7 +98,9 @@ public class MikroTikUpdateService
                     {
                         _logger.LogInformation(
                             "Loaded {Count} allowed architectures from {File}",
-                            normalized.Length, _allowedArchesFile);
+                            normalized.Length,
+                            _allowedArchesFile);
+
                         return normalized;
                     }
                 }
@@ -107,7 +111,8 @@ public class MikroTikUpdateService
             _logger.LogWarning(ex, "Failed to load allowed architectures, using defaults");
         }
 
-        _logger.LogInformation("Using default allowed architectures: {Arches}",
+        _logger.LogInformation(
+            "Using default allowed architectures: {Arches}",
             string.Join(", ", DefaultAllowedArches));
 
         return DefaultAllowedArches;
@@ -123,8 +128,9 @@ public class MikroTikUpdateService
         if (arches == null) throw new ArgumentNullException(nameof(arches));
 
         var normalized = arches
-            .Select(a => a?.Trim().ToLowerInvariant())
+            .Select(a => a.Trim())
             .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a.ToLowerInvariant())
             .Distinct()
             .ToArray();
 
@@ -136,10 +142,14 @@ public class MikroTikUpdateService
 
         try
         {
-            var json = JsonSerializer.Serialize(_allowedArches,
+            var json = JsonSerializer.Serialize(
+                _allowedArches,
                 new JsonSerializerOptions {WriteIndented = true});
+
             await File.WriteAllTextAsync(_allowedArchesFile, json);
-            _logger.LogInformation("Allowed architectures updated: {Arches}",
+
+            _logger.LogInformation(
+                "Allowed architectures updated: {Arches}",
                 string.Join(", ", _allowedArches));
         }
         catch (Exception ex)
@@ -149,7 +159,6 @@ public class MikroTikUpdateService
         }
     }
 
-
     /// <summary>
     ///     Проверяет доступность MikroTik серверов
     /// </summary>
@@ -157,22 +166,43 @@ public class MikroTikUpdateService
     {
         try
         {
-            _logger.LogInformation("Checking connectivity to upgrade.mikrotik.com...");
+            _logger.LogDebug("Checking connectivity to upgrade.mikrotik.com...");
             using var request =
                 new HttpRequestMessage(HttpMethod.Head, "https://upgrade.mikrotik.com/routeros/LATEST.6");
             var response = await _httpClient.SendAsync(request);
             var isConnected = response.IsSuccessStatusCode;
-            _logger.LogInformation("MikroTik server connectivity: {Status}", isConnected ? "OK" : "FAILED");
+
+            _logger.LogDebug(
+                "MikroTik server connectivity: {Status} (HTTP {Code})",
+                isConnected ? "OK" : "FAILED",
+                (int) response.StatusCode);
+
             return isConnected;
+        }
+        catch (HttpRequestException ex) when (ex.InnerException is SocketException
+                                              {
+                                                  SocketErrorCode: SocketError.ConnectionRefused
+                                              })
+        {
+            // Специальный случай: 10061 — просто предупреждение без стэка
+            _logger.LogWarning(
+                "MikroTik server refused connection (SocketError 10061): {Message}",
+                ex.Message);
+            return false;
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "MikroTik server unreachable (network error)");
+            // Другие сетевые ошибки — пишем кратко, без стэктрейса
+            _logger.LogWarning(
+                "HTTP error checking MikroTik connectivity: {Message}",
+                ex.Message);
             return false;
         }
         catch (TaskCanceledException ex)
         {
-            _logger.LogError(ex, "MikroTik server timeout");
+            _logger.LogWarning(
+                "MikroTik connectivity check timeout: {Message}",
+                ex.Message);
             return false;
         }
         catch (Exception ex)

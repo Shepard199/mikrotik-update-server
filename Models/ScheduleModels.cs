@@ -20,5 +20,4 @@ public class ScheduleStatus
 {
     public ScheduleConfig Config { get; set; } = new();
     public DateTime NextScheduledCheck { get; set; }
-    private bool IsPaused => Config.PausedUntil.HasValue && Config.PausedUntil > DateTime.Now;
 }

@@ -34,8 +34,8 @@ public class InMemoryLogStore : ILogStore
         {
             var s = search.ToLowerInvariant();
             query = query.Where(e =>
-                (e.Source?.ToLowerInvariant().Contains(s) ?? false) ||
-                (e.Message?.ToLowerInvariant().Contains(s) ?? false) ||
+                e.Source.ToLowerInvariant().Contains(s) ||
+                e.Message.ToLowerInvariant().Contains(s) ||
                 (e.Exception?.ToLowerInvariant().Contains(s) ?? false));
         }
 
@@ -46,7 +46,7 @@ public class InMemoryLogStore : ILogStore
     {
         var snapshot = _entries.ToArray();
         if (snapshot.Length == 0)
-            return new LogStats {TotalEntries = 0};
+            return new LogStats { TotalEntries = 0 };
 
         return new LogStats
         {
