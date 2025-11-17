@@ -3,12 +3,11 @@ using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
 
-namespace MikroTik.UpdateServer;
+namespace MikroTik.UpdateServer.Services;
 
 public class MikroTikUpdateService
 {
-    //private static readonly string[] AllowedArches = ["arm", "arm64", "mipsbe", "mmips", "smips", "tile", "ppc"];
-    //private static readonly string[] V6Arches = ["arm64", "arm", "mipsbe", "mmips", "smips", "arm", "tile", "ppc"];
+    private const int _diskUsageCacheSeconds = 30; // кэш на 30 секунд
 
     private static readonly string[] DefaultAllowedArches =
     [
@@ -22,12 +21,9 @@ public class MikroTikUpdateService
     ];
 
     private readonly string _allowedArchesFile;
-    private string[] _allowedArches = DefaultAllowedArches;
-    private IReadOnlyList<string> AllowedArches => _allowedArches;
 
     private readonly string _baseFolder;
     private readonly string _deleteJsonFile;
-    private readonly int _diskUsageCacheSeconds = 30; // кэш на 30 секунд
     private readonly HttpClient _httpClient;
 
     private readonly string _lastCheckFile;
@@ -37,6 +33,7 @@ public class MikroTikUpdateService
     private string _activeV6Version = "";
     private string _activeV7Fixed = "";
     private string _activeV7Latest = "";
+    private string[] _allowedArches;
 
     private int _isChecking = 0;
 
@@ -87,7 +84,7 @@ public class MikroTikUpdateService
                 var json = File.ReadAllText(_allowedArchesFile);
                 var arches = JsonSerializer.Deserialize<string[]>(json);
 
-                if (arches is { Length: > 0 })
+                if (arches is {Length: > 0})
                 {
                     var normalized = arches
                         .Select(a => a?.Trim().ToLowerInvariant())
@@ -116,7 +113,10 @@ public class MikroTikUpdateService
         return DefaultAllowedArches;
     }
 
-    public string[] GetAllowedArches() => _allowedArches.ToArray();
+    public string[] GetAllowedArches()
+    {
+        return _allowedArches.ToArray();
+    }
 
     public async Task UpdateAllowedArchesAsync(IEnumerable<string> arches)
     {
@@ -137,7 +137,7 @@ public class MikroTikUpdateService
         try
         {
             var json = JsonSerializer.Serialize(_allowedArches,
-                new JsonSerializerOptions { WriteIndented = true });
+                new JsonSerializerOptions {WriteIndented = true});
             await File.WriteAllTextAsync(_allowedArchesFile, json);
             _logger.LogInformation("Allowed architectures updated: {Arches}",
                 string.Join(", ", _allowedArches));

@@ -148,7 +148,7 @@ function renderV6Row(version, isActive) {
     : "";
 
   return `
-    <td><strong>${version}</strong></td>
+    <td title="${version}" style="cursor: pointer;" onclick="copyVersionToClipboard('${version}')"><strong>📋 ${version}</strong></td>
     <td>${statusBadge}</td>
     <td>
       <button class="btn-set" onclick="setVersion('${version}')">Set</button>
@@ -961,5 +961,404 @@ function showToast(message, type = "info") {
   }, 3000);
 }
 
-// Cleanup on page unload
-window.addEventListener("beforeunload", stopPeriodicUpdates);
+/**
+ * ============================================================================
+ * SEARCH & FILTER HELPERS
+ * ============================================================================
+ */
+
+function searchVersions(query) {
+  const lowerQuery = query.toLowerCase();
+  const rows = document.querySelectorAll("#v6-list tr, #v7-list tr");
+
+  rows.forEach((row) => {
+    const version =
+      row.querySelector("td:first-child strong")?.textContent.toLowerCase() ||
+      "";
+    row.style.display = version.includes(lowerQuery) ? "" : "none";
+  });
+}
+
+/**
+ * Export data to JSON
+ */
+function exportDashboardData() {
+  try {
+    const data = {
+      exportTime: new Date().toISOString(),
+      cpuUsage: document.getElementById("cpuUsage").textContent,
+      memory: document.getElementById("memory").textContent,
+      uptime: document.getElementById("uptime").textContent,
+      disk: document.getElementById("disk")?.textContent || "-",
+      totalFiles: document.getElementById("total-files").textContent,
+      totalGB: document.getElementById("total-gb").textContent,
+      serverStatus: document.getElementById("server-status").textContent,
+    };
+
+    const dataStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    downloadBlob(
+      blob,
+      `dashboard-${new Date().toISOString().slice(0, 10)}.json`
+    );
+    showToast("Dashboard data exported", "success");
+  } catch (error) {
+    console.error("Error exporting data:", error);
+    showToast(`Error exporting data: ${error.message}`, "error");
+  }
+}
+
+/**
+ * ============================================================================
+ * REAL-TIME MONITORING
+ * ============================================================================
+ */
+
+let lastDashboardData = null;
+
+async function loadDashboardWithComparison() {
+  try {
+    const response = await fetch(`${API_BASE}/status`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    updateDashboardUI(data);
+    detectAnomalies(data);
+    lastDashboardData = data;
+  } catch (error) {
+    console.error("Failed to load dashboard:", error);
+    setOfflineStatus();
+  }
+}
+
+function detectAnomalies(data) {
+  const alerts = [];
+
+  // Check CPU usage
+  const cpuPercent = parseInt(data.process.cpuUsage);
+  if (cpuPercent > 80) {
+    alerts.push({ type: "error", message: `High CPU usage: ${cpuPercent}%` });
+  }
+
+  // Check memory
+  const memoryPercent = parseInt(data.process.memory);
+  if (memoryPercent > 85) {
+    alerts.push({
+      type: "warning",
+      message: `High memory usage: ${memoryPercent}%`,
+    });
+  }
+
+  // Check disk
+  if (data.diskUsage && data.diskUsage.totalGB > 900) {
+    alerts.push({
+      type: "warning",
+      message: `Low disk space: ${data.diskUsage.totalGB} GB used`,
+    });
+  }
+
+  // Display alerts
+  if (alerts.length > 0) {
+    updateAlertsDisplay(alerts);
+  }
+}
+
+function updateAlertsDisplay(alerts) {
+  const alertDisk = document.getElementById("alert-disk");
+  const alertInternet = document.getElementById("alert-internet");
+  const alertJobs = document.getElementById("alert-jobs");
+
+  // Reset
+  [alertDisk, alertInternet, alertJobs].forEach((el) => {
+    if (el) {
+      el.textContent = "OK";
+      el.style.color = "var(--success)";
+    }
+  });
+
+  // Apply alerts
+  alerts.forEach((alert) => {
+    if (alert.message.includes("disk") || alert.message.includes("Disk")) {
+      if (alertDisk) {
+        alertDisk.textContent = "⚠️ Warning";
+        alertDisk.style.color =
+          alert.type === "error" ? "var(--error)" : "var(--warning)";
+      }
+    }
+  });
+}
+
+/**
+ * ============================================================================
+ * STATISTICS & ANALYTICS
+ * ============================================================================
+ */
+
+function getLogStats() {
+  try {
+    const totalEntries = document.querySelector(
+      ".stat-item:first-child .stat-number"
+    );
+    const infoCount = document.querySelector(".stat-item.info .stat-number");
+    const warningCount = document.querySelector(
+      ".stat-item.warning .stat-number"
+    );
+    const errorCount = document.querySelector(".stat-item.error .stat-number");
+
+    return {
+      total: parseInt(totalEntries?.textContent) || 0,
+      info: parseInt(infoCount?.textContent) || 0,
+      warning: parseInt(warningCount?.textContent) || 0,
+      error: parseInt(errorCount?.textContent) || 0,
+    };
+  } catch (error) {
+    console.error("Error getting log stats:", error);
+    return null;
+  }
+}
+
+function displayLogAnalytics() {
+  const stats = getLogStats();
+  if (!stats) return;
+
+  const total = stats.total || 1;
+  const errorPercent = ((stats.error / total) * 100).toFixed(1);
+  const warningPercent = ((stats.warning / total) * 100).toFixed(1);
+
+  console.log(`📊 Log Analytics:
+    Total: ${stats.total}
+    Errors: ${stats.error} (${errorPercent}%)
+    Warnings: ${stats.warning} (${warningPercent}%)
+    Info: ${stats.info}`);
+
+  showToast(
+    `Errors: ${errorPercent}% | Warnings: ${warningPercent}%`,
+    stats.error > stats.warning ? "error" : "warning"
+  );
+}
+
+/**
+ * ============================================================================
+ * KEYBOARD SHORTCUTS
+ * ============================================================================
+ */
+
+document.addEventListener("keydown", (event) => {
+  // Ctrl/Cmd + K = Open search
+  if ((event.ctrlKey || event.metaKey) && event.key === "k") {
+    event.preventDefault();
+    focusSearch();
+  }
+
+  // Ctrl/Cmd + R = Refresh current tab
+  if ((event.ctrlKey || event.metaKey) && event.key === "r") {
+    event.preventDefault();
+    refreshCurrentTab();
+  }
+
+  // Ctrl/Cmd + S = Save (for schedule/config)
+  if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+    event.preventDefault();
+    const scheduleForm = document.getElementById("schedule-form");
+    if (scheduleForm?.offsetParent !== null) {
+      saveSchedule({ preventDefault: () => {} });
+    }
+  }
+});
+
+function focusSearch() {
+  const searchInput = document.getElementById("log-search");
+  if (searchInput) {
+    searchInput.focus();
+    searchInput.select();
+    showToast("Search focused (Ctrl+K)", "info");
+  }
+}
+
+function refreshCurrentTab() {
+  const activeTab = document.querySelector(".tab-pane.active");
+  if (!activeTab) return;
+
+  const tabId = activeTab.id;
+
+  if (tabId === "dashboard") {
+    loadDashboard();
+    loadVersions();
+  } else if (tabId === "versions") {
+    loadVersions();
+  } else if (tabId === "logs") {
+    loadLogs();
+  } else if (tabId === "schedule") {
+    loadSchedule();
+  } else if (tabId === "changelog") {
+    loadGlobalChangelog();
+  }
+
+  showToast("Tab refreshed", "info");
+}
+
+/**
+ * ============================================================================
+ * FAVORITES/BOOKMARKS
+ * ============================================================================
+ */
+
+function addVersionToFavorites(version) {
+  try {
+    const favorites = JSON.parse(
+      localStorage.getItem("favoriteVersions") || "[]"
+    );
+    if (!favorites.includes(version)) {
+      favorites.push(version);
+      localStorage.setItem("favoriteVersions", JSON.stringify(favorites));
+      showToast(`${version} added to favorites`, "success");
+    }
+  } catch (error) {
+    console.error("Error saving favorite:", error);
+  }
+}
+
+function getFavoriteVersions() {
+  try {
+    return JSON.parse(localStorage.getItem("favoriteVersions") || "[]");
+  } catch (error) {
+    console.error("Error loading favorites:", error);
+    return [];
+  }
+}
+
+function markFavoriteVersions() {
+  const favorites = getFavoriteVersions();
+  document.querySelectorAll("#v6-list tr, #v7-list tr").forEach((row) => {
+    const version = row.querySelector("td:first-child strong")?.textContent;
+    if (version && favorites.includes(version)) {
+      row.style.borderLeft = "3px solid var(--primary)";
+    }
+  });
+}
+
+/**
+ * ============================================================================
+ * ALERTS & NOTIFICATIONS
+ * ============================================================================
+ */
+
+function setupErrorAlert() {
+  window.addEventListener("error", (event) => {
+    console.error("Global error:", event.error);
+    showToast(`Error: ${event.error?.message || "Unknown error"}`, "error");
+  });
+}
+
+function checkServerHealth() {
+  const status = document.getElementById("server-status").textContent;
+  if (status.includes("Offline")) {
+    showToast("⚠️ Server is offline!", "error");
+    return false;
+  }
+  return true;
+}
+
+/**
+ * ============================================================================
+ * CLIPBOARD UTILITIES
+ * ============================================================================
+ */
+
+function copyToClipboard(text) {
+  navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      showToast("Copied to clipboard", "success");
+    })
+    .catch((error) => {
+      console.error("Failed to copy:", error);
+      showToast("Failed to copy to clipboard", "error");
+    });
+}
+
+function copyVersionToClipboard(version) {
+  copyToClipboard(version);
+}
+
+/**
+ * ============================================================================
+ * THEME & UI PREFERENCES
+ * ============================================================================
+ */
+
+function initializeTheme() {
+  // Берём сохранённую тему, если есть
+  const savedTheme = localStorage.getItem("dashboardTheme");
+
+  // Если нет — смотрим системные настройки
+  const prefersDark =
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+  const theme = savedTheme || (prefersDark ? "dark" : "light");
+  applyTheme(theme);
+}
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+
+  // Атрибут для CSS: :root[data-theme="light"] / :root[data-theme="dark"]
+  root.setAttribute("data-theme", theme);
+
+  // Для возможных глобальных стилей на body (если захочешь)
+  if (document.body) {
+    document.body.classList.remove("theme-dark", "theme-light");
+    document.body.classList.add(
+      theme === "dark" ? "theme-dark" : "theme-light"
+    );
+  }
+
+  // Сохраняем выбор
+  localStorage.setItem("dashboardTheme", theme);
+
+  // Обновляем кнопку переключения, если она есть
+  const toggleBtn = document.getElementById("themeToggle");
+  if (toggleBtn) {
+    const isDark = theme === "dark";
+
+    toggleBtn.setAttribute(
+      "aria-label",
+      isDark ? "Switch to light theme" : "Switch to dark theme"
+    );
+
+    const iconSpan = toggleBtn.querySelector(".theme-toggle-icon");
+    if (iconSpan) {
+      iconSpan.textContent = isDark ? "🌙" : "☀️";
+    }
+  }
+}
+
+function toggleTheme() {
+  const current =
+    localStorage.getItem("dashboardTheme") ||
+    document.documentElement.getAttribute("data-theme") ||
+    "dark";
+
+  const newTheme = current === "dark" ? "light" : "dark";
+  applyTheme(newTheme);
+
+  showToast(
+    newTheme === "dark" ? "Dark theme enabled" : "Light theme enabled",
+    "info"
+  );
+}
+
+/**
+ * ============================================================================
+ * INITIALIZATION
+ * ============================================================================
+ */
+
+// Initialize theme on page load
+initializeTheme();
+setupErrorAlert();
+
+// Replace loadDashboard with comparison version
+const originalLoadDashboard = loadDashboard;
+loadDashboard = loadDashboardWithComparison;

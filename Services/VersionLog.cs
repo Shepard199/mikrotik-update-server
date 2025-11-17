@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace MikroTik.UpdateServer;
+namespace MikroTik.UpdateServer.Services;
 
 public class VersionLog
 {

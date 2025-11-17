@@ -80,7 +80,7 @@ public class ScheduleService
         return false;
     }
 
-    public DateTime CalculateNextCheckTime()
+    private DateTime CalculateNextCheckTime()
     {
         if (!_config.Enabled)
             return DateTime.MaxValue;

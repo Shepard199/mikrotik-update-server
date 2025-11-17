@@ -1,6 +1,4 @@
-﻿using MikroTik.UpdateServer.Services;
-
-namespace MikroTik.UpdateServer;
+﻿namespace MikroTik.UpdateServer.Services;
 
 public class UpdateCheckService(
     MikroTikUpdateService updateService,

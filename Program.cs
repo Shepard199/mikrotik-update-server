@@ -144,7 +144,7 @@ public static class Program
         api.MapGet("/logs", (string? level, string? search, int? take, ILogStore store) =>
         {
             var logs = store.Query(level, search, take ?? 100);
-            return Results.Ok(new { logs });
+            return Results.Ok(new {logs});
         });
 
         api.MapGet("/logs/stats", (ILogStore store) =>
@@ -234,7 +234,7 @@ public static class Program
         try
         {
             await service.UpdateAllowedArchesAsync(arches);
-            return Results.Ok(new { message = "Allowed architectures updated successfully" });
+            return Results.Ok(new {message = "Allowed architectures updated successfully"});
         }
         catch (Exception ex)
         {
@@ -261,7 +261,7 @@ public static class Program
         try
         {
             await scheduleService.UpdateConfigAsync(config);
-            return Results.Ok(new { message = "Schedule updated successfully" });
+            return Results.Ok(new {message = "Schedule updated successfully"});
         }
         catch (Exception ex)
         {
@@ -274,7 +274,7 @@ public static class Program
         try
         {
             await scheduleService.PauseAsync(TimeSpan.FromHours(hours));
-            return Results.Ok(new { message = $"Updates paused for {hours} hours" });
+            return Results.Ok(new {message = $"Updates paused for {hours} hours"});
         }
         catch (Exception ex)
         {
@@ -287,7 +287,7 @@ public static class Program
         try
         {
             await scheduleService.ResumeAsync();
-            return Results.Ok(new { message = "Updates resumed" });
+            return Results.Ok(new {message = "Updates resumed"});
         }
         catch (Exception ex)
         {
@@ -316,7 +316,7 @@ public static class Program
                 connectivity = new
                 {
                     mikrotikServer = response.IsSuccessStatusCode ? "✓ Connected" : "✗ Failed",
-                    details = $"HTTP {(int)response.StatusCode}"
+                    details = $"HTTP {(int) response.StatusCode}"
                 };
             }
             catch (HttpRequestException ex)
@@ -632,7 +632,7 @@ public static class Program
     {
         if (string.IsNullOrWhiteSpace(version))
             return Results.Json(
-                new { code = "bad_request", message = "Version parameter is required" },
+                new {code = "bad_request", message = "Version parameter is required"},
                 statusCode: 400);
 
         try
@@ -640,15 +640,15 @@ public static class Program
             var result = await service.SetActiveVersionAsync(version);
             if (!result)
                 return Results.Json(
-                    new { code = "version_not_found", message = $"Version {version} not found" },
+                    new {code = "version_not_found", message = $"Version {version} not found"},
                     statusCode: 404);
 
-            return Results.Ok(new { message = "Active version updated", version });
+            return Results.Ok(new {message = "Active version updated", version});
         }
         catch
         {
             return Results.Json(
-                new { code = "internal_error", message = "Failed to set active version" },
+                new {code = "internal_error", message = "Failed to set active version"},
                 statusCode: 500);
         }
     }
@@ -659,7 +659,7 @@ public static class Program
     {
         if (string.IsNullOrWhiteSpace(version))
             return Results.Json(
-                new { code = "bad_request", message = "Version parameter is required" },
+                new {code = "bad_request", message = "Version parameter is required"},
                 statusCode: 400);
 
         try
@@ -667,15 +667,15 @@ public static class Program
             var result = await service.RemoveVersionAsync(version);
             if (!result)
                 return Results.Json(
-                    new { code = "version_protected", message = $"Version {version} is active or protected" },
+                    new {code = "version_protected", message = $"Version {version} is active or protected"},
                     statusCode: 409);
 
-            return Results.Ok(new { message = "Version removed", version });
+            return Results.Ok(new {message = "Version removed", version});
         }
         catch
         {
             return Results.Json(
-                new { code = "internal_error", message = "Failed to remove version" },
+                new {code = "internal_error", message = "Failed to remove version"},
                 statusCode: 500);
         }
     }
@@ -688,13 +688,13 @@ public static class Program
     {
         if (string.IsNullOrWhiteSpace(version) || string.IsNullOrWhiteSpace(filename))
             return Results.Json(
-                new { code = "bad_request", message = "Version and filename are required" },
+                new {code = "bad_request", message = "Version and filename are required"},
                 statusCode: 400);
 
         var filePath = await service.GetFilePathAsync(version, filename);
         if (filePath == null || !File.Exists(filePath))
             return Results.Json(
-                new { code = "file_not_found", message = $"File not found: {version}/{filename}" },
+                new {code = "file_not_found", message = $"File not found: {version}/{filename}"},
                 statusCode: 404);
 
         try
@@ -713,7 +713,7 @@ public static class Program
         catch
         {
             return Results.Json(
-                new { code = "internal_error", message = "Failed to download file" },
+                new {code = "internal_error", message = "Failed to download file"},
                 statusCode: 500);
         }
     }
@@ -747,7 +747,7 @@ public static class Program
         var content = await service.GetGlobalChangelogContentAsync();
         if (content is null)
             return Results.Json(
-                new { code = "not_found", message = "Global CHANGELOG not available" },
+                new {code = "not_found", message = "Global CHANGELOG not available"},
                 statusCode: 404);
 
         return Results.Text(content, "text/plain; charset=utf-8");
@@ -759,13 +759,13 @@ public static class Program
     {
         if (string.IsNullOrWhiteSpace(version))
             return Results.Json(
-                new { code = "bad_request", message = "Version parameter is required" },
+                new {code = "bad_request", message = "Version parameter is required"},
                 statusCode: 400);
 
         var content = await service.GetChangelogContentAsync(version);
         if (content is null)
             return Results.Json(
-                new { code = "not_found", message = $"CHANGELOG for version {version} not found" },
+                new {code = "not_found", message = $"CHANGELOG for version {version} not found"},
                 statusCode: 404);
 
         return Results.Text(content, "text/plain; charset=utf-8");
