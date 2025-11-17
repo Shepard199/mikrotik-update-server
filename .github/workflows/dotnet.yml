@@ -1,0 +1,54 @@
+# .github/workflows/dotnet.yml
+name: Build MikroTik.UpdateServer
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CONFIGURATION: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore MikroTik.UpdateServer.sln
+
+      - name: Build
+        run: dotnet build MikroTik.UpdateServer.sln --configuration $CONFIGURATION --no-restore
+
+      # Если добавишь отдельные тестовые проекты, раскомментируешь и поправишь путь
+      # - name: Test
+      #   run: dotnet test MikroTik.UpdateServer.sln --configuration $CONFIGURATION --no-build --verbosity normal
+
+      - name: Publish linux-x64
+        run: dotnet publish MikroTik.UpdateServer.csproj \
+          --configuration $CONFIGURATION \
+          --runtime linux-x64 \
+          --self-contained false \
+          -o ./publish/linux-x64
+
+      - name: Publish win-x64
+        run: dotnet publish MikroTik.UpdateServer.csproj \
+          --configuration $CONFIGURATION \
+          --runtime win-x64 \
+          --self-contained false \
+          -o ./publish/win-x64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikrotik-update-server-${{ env.CONFIGURATION }}
+          path: publish
