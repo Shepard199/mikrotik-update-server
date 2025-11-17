@@ -11,19 +11,29 @@ public class LogStoreLoggerProvider(ILogStore logStore) : ILoggerProvider
 {
     private readonly ConcurrentDictionary<string, LogStoreLogger> _loggers = new();
 
+    // Простая защита от использования после Dispose
+    private bool _disposed;
+
     public ILogger CreateLogger(string categoryName)
     {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(LogStoreLoggerProvider));
+
         return _loggers.GetOrAdd(categoryName, name => new LogStoreLogger(name, logStore));
     }
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         _loggers.Clear();
     }
 
     private sealed class LogStoreLogger(string categoryName, ILogStore store) : ILogger
     {
-        public IDisposable BeginScope<TState>(TState state) where TState : notnull
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {
             return NullScope.Instance;
         }
@@ -39,14 +49,17 @@ public class LogStoreLoggerProvider(ILogStore logStore) : ILoggerProvider
             EventId eventId,
             TState state,
             Exception? exception,
-            Func<TState, Exception?, string> formatter)
+            Func<TState, Exception?, string>? formatter)
         {
             if (!IsEnabled(logLevel))
                 return;
 
-            ArgumentNullException.ThrowIfNull(formatter);
+            if (formatter is null)
+                return;
 
             var message = formatter(state, exception);
+
+            // Если нет ни сообщения, ни исключения — не пишем мусор
             if (string.IsNullOrEmpty(message) && exception == null)
                 return;
 
@@ -61,14 +74,21 @@ public class LogStoreLoggerProvider(ILogStore logStore) : ILoggerProvider
                 _ => "Information"
             };
 
-            store.Add(new LogEntry
+            try
             {
-                Timestamp = DateTime.UtcNow,
-                Level = levelString,
-                Source = categoryName,
-                Message = message,
-                Exception = exception?.ToString()
-            });
+                store.Add(new LogEntry
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Level = levelString,
+                    Source = categoryName,
+                    Message = message ?? string.Empty,
+                    Exception = exception?.ToString()
+                });
+            }
+            catch
+            {
+                // Если стор сломался, просто пропускаем запись.
+            }
         }
 
         private sealed class NullScope : IDisposable

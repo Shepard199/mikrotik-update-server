@@ -16,8 +16,28 @@ public class ScheduleConfig
     public bool NotifyOnError { get; set; } = true;
 }
 
-public class ScheduleStatus
+public class ScheduleStatus(ScheduleConfig config)
 {
-    public ScheduleConfig Config { get; set; } = new();
+    private ScheduleConfig Config { get; } = config;
     public DateTime NextScheduledCheck { get; set; }
+
+    public string Status
+    {
+        get
+        {
+            if (!Config.Enabled) return "Disabled";
+            if (Config.PausedUntil.HasValue && Config.PausedUntil > DateTime.UtcNow)
+                return "Paused";
+            return "Running";
+        }
+    }
+
+    public TimeSpan TimeUntilNextCheck
+    {
+        get
+        {
+            var now = DateTime.UtcNow;
+            return NextScheduledCheck > now ? NextScheduledCheck - now : TimeSpan.Zero;
+        }
+    }
 }

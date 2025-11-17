@@ -20,6 +20,8 @@ public static class Program
         builder.Services.AddSingleton<ILogStore, InMemoryLogStore>();
         builder.Services.AddSingleton<ILoggerProvider, LogStoreLoggerProvider>();
 
+        builder.Services.AddHttpClient("MikroTikDiagnostics", client => { client.Timeout = TimeSpan.FromSeconds(5); });
+
         builder.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
@@ -39,6 +41,7 @@ public static class Program
 
         var app = builder.Build();
         var logStore = app.Services.GetRequiredService<ILogStore>();
+        app.UseExceptionHandler("/error");
 
         var baseFolder = Path.Combine(AppContext.BaseDirectory, "routeros");
         Console.WriteLine($"[STARTUP] Base folder path: {baseFolder}");
@@ -63,11 +66,12 @@ public static class Program
             try
             {
                 await next.Invoke();
-                var duration = DateTime.UtcNow - startTime;
+                var endTime = DateTime.UtcNow;
+                var duration = endTime - startTime;
                 var statusCode = context.Response.StatusCode;
 
                 Console.WriteLine(
-                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {method} {path} -> {statusCode} ({duration.TotalMilliseconds:F0}ms)");
+                    $"[{endTime:yyyy-MM-dd HH:mm:ss}] {method} {path} -> {statusCode} ({duration.TotalMilliseconds:F0}ms)");
 
                 var level = statusCode >= 500
                     ? "Error"
@@ -77,7 +81,7 @@ public static class Program
 
                 logStore.Add(new LogEntry
                 {
-                    Timestamp = DateTime.UtcNow,
+                    Timestamp = endTime,
                     Level = level,
                     Source = "HTTP",
                     Message = $"{method} {path} -> {statusCode} ({duration.TotalMilliseconds:F0}ms)"
@@ -85,11 +89,12 @@ public static class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] {method} {path}: {ex.Message}");
+                var errorTime = DateTime.UtcNow;
+                Console.WriteLine($"[{errorTime:yyyy-MM-dd HH:mm:ss}] [ERROR] {method} {path}: {ex.Message}");
 
                 logStore.Add(new LogEntry
                 {
-                    Timestamp = DateTime.UtcNow,
+                    Timestamp = errorTime,
                     Level = "Error",
                     Source = "HTTP",
                     Message = $"{method} {path} -> exception",
@@ -101,12 +106,18 @@ public static class Program
         });
 
         // Безопасные заголовки
+        // Безопасные заголовки
         app.Use(async (context, next) =>
         {
             context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
             context.Response.Headers.Append("X-Frame-Options", "DENY");
             context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
-            context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+
+            if (context.Request.IsHttps)
+                context.Response.Headers.Append(
+                    "Strict-Transport-Security",
+                    "max-age=31536000; includeSubDomains");
+
             await next.Invoke();
         });
 
@@ -201,7 +212,7 @@ public static class Program
         app.MapGet("/", () => Results.Redirect("/index.html"));
 
         // Обработка ошибок JSON-эндпоинтом
-        app.UseExceptionHandler("/error");
+
         app.MapGet("/error", HandleError);
 
         try
@@ -295,13 +306,14 @@ public static class Program
         }
     }
 
-    private static async Task<IResult> GetDiagnostics(MikroTikUpdateService service)
+    private static async Task<IResult> GetDiagnostics(
+        MikroTikUpdateService service,
+        IHttpClientFactory httpClientFactory)
     {
         try
         {
             // Пытаемся подключиться к MikroTik серверам
-            using var client = new HttpClient();
-            client.Timeout = TimeSpan.FromSeconds(5);
+            var client = httpClientFactory.CreateClient("MikroTikDiagnostics");
 
             var connectivity = new
             {
@@ -450,7 +462,7 @@ public static class Program
                 });
             }
 
-            return await ServePhysicalFile(filePath, filename, context);
+            return await ServePhysicalFile(filePath, filename);
         }
 
         // 3. Одиночные файлы: /routeros/{filename}
@@ -489,7 +501,7 @@ public static class Program
             });
         }
 
-        return await ServePhysicalFile(filePathRegular, filename, context);
+        return await ServePhysicalFile(filePathRegular, filename);
     }
 
     // Вспомогательный метод для определения pointer-файлов
@@ -503,14 +515,14 @@ public static class Program
                lowerFilename.StartsWith("newest7") ||
                lowerFilename.StartsWith("newesta6") ||
                lowerFilename.StartsWith("newesta7") ||
-               (lowerFilename.Contains("stable") && !lowerFilename.Contains(".")) ||
-               (lowerFilename.Contains("long-term") && !lowerFilename.Contains(".")) ||
-               (lowerFilename.Contains("testing") && !lowerFilename.Contains(".")) ||
-               (lowerFilename.Contains("development") && !lowerFilename.Contains("."));
+               (lowerFilename.Contains("stable") && !lowerFilename.Contains('.')) ||
+               (lowerFilename.Contains("long-term") && !lowerFilename.Contains('.')) ||
+               (lowerFilename.Contains("testing") && !lowerFilename.Contains('.')) ||
+               (lowerFilename.Contains("development") && !lowerFilename.Contains('.'));
     }
 
     // Вспомогательный метод для обслуживания физических файлов
-    private static Task<IResult> ServePhysicalFile(string filePath, string filename, HttpContext context)
+    private static Task<IResult> ServePhysicalFile(string filePath, string filename)
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         var contentType = ext switch
@@ -523,18 +535,15 @@ public static class Program
         };
 
         // Для CHANGELOG не добавляем Content-Disposition
-        if (!filename.Equals("CHANGELOG", StringComparison.OrdinalIgnoreCase))
-        {
-            var fileNameOnly = Path.GetFileName(filePath);
-            context.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{fileNameOnly}\"";
-        }
+        var downloadName = filename.Equals("CHANGELOG", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : Path.GetFileName(filePath);
 
         Console.WriteLine($"[DEBUG] Serving file: {filePath} with contentType: {contentType}");
         var stream = File.OpenRead(filePath);
-        var result = Results.File(stream, contentType, Path.GetFileName(filePath));
+        var result = Results.File(stream, contentType, downloadName);
         return Task.FromResult(result);
     }
-
 
     // ===== Handlers =====
 

@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
@@ -41,6 +42,7 @@ public class MikroTikUpdateService
     private DateTime _lastCheck = DateTime.MinValue;
 
     private DateTime _lastCpuCheck = DateTime.MinValue;
+    private TimeSpan _lastCpuTotalProcessorTime = TimeSpan.Zero;
     private double _lastCpuValue = 0;
 
     private long _lastDiskUsageBytes = 0;
@@ -219,7 +221,12 @@ public class MikroTikUpdateService
             if (File.Exists(_lastCheckFile))
             {
                 var content = File.ReadAllText(_lastCheckFile);
-                if (DateTime.TryParse(content, out var lastCheck))
+                if (DateTime.TryParseExact(
+                        content,
+                        "O",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.RoundtripKind,
+                        out var lastCheck))
                 {
                     _lastCheck = lastCheck;
                     _logger.LogInformation("Loaded last check time: {LastCheck}", _lastCheck);
@@ -492,7 +499,7 @@ public class MikroTikUpdateService
             await UpdatePointerFilesAsync(v6Version, v7Fixed, v7Latest, v6Build, v7FixedBuild, v7LatestBuild);
             await LogVersionsAsync(v6Version, v7Fixed, v7Latest);
 
-            _lastCheck = DateTime.Now;
+            _lastCheck = DateTime.UtcNow;
             SaveLastCheck();
 
             _logger.LogInformation("=== Update check completed. Downloaded {Count} files ===", downloadedCount);
@@ -532,7 +539,7 @@ public class MikroTikUpdateService
         {
             var fileName = isV6Extra
                 ? $"all_packages-{arch}-{version}.zip"
-                : $"routeros-{arch}-{version}.npk";
+                : $"routeros-{version}-{arch}.npk"; // <-- совпадает с именем при скачивании
 
             var filePath = Path.Combine(versionDir, fileName);
 
@@ -710,8 +717,10 @@ public class MikroTikUpdateService
             var bytes = await _httpClient.GetByteArrayAsync(fileUrl);
 
             await File.WriteAllBytesAsync(filePath, bytes);
-            _totalDownloaded += bytes.Length;
-            _totalFiles++;
+
+            // Потокобезопасно обновляем глобальные счётчики
+            Interlocked.Add(ref _totalDownloaded, bytes.Length);
+            Interlocked.Increment(ref _totalFiles);
 
             _logger.LogInformation(
                 "Downloaded: {File} ({Size} MB)",
@@ -1166,19 +1175,41 @@ public class MikroTikUpdateService
         try
         {
             var process = Process.GetCurrentProcess();
+            var now = DateTime.UtcNow;
 
-            // Проверяем не чаще, чем раз в секунду
-            if ((DateTime.Now - _lastCpuCheck).TotalMilliseconds < 1000)
+            // Если с прошлого замера прошло меньше 1 секунды — отдаём кеш
+            if (_lastCpuCheck != DateTime.MinValue &&
+                (now - _lastCpuCheck).TotalMilliseconds < 1000)
                 return _lastCpuValue.ToString("F2") + "%";
 
-            // Кроссплатформенный способ: используем CPU time
-            // Formula: (CPUTime / TotalRunTime) * 100 / ProcessorCount
-            var totalRunTime = (DateTime.Now - process.StartTime).TotalMilliseconds;
-            var cpuTime = process.TotalProcessorTime.TotalMilliseconds;
+            var currentCpuTime = process.TotalProcessorTime;
 
-            if (totalRunTime > 0) _lastCpuValue = cpuTime / totalRunTime / Environment.ProcessorCount * 100;
+            // Первый вызов: просто инициализируем базу и возвращаем 0
+            if (_lastCpuCheck == DateTime.MinValue)
+            {
+                _lastCpuCheck = now;
+                _lastCpuTotalProcessorTime = currentCpuTime;
+                _lastCpuValue = 0;
+                return "0.00%";
+            }
 
-            _lastCpuCheck = DateTime.Now;
+            var cpuUsedMs = (currentCpuTime - _lastCpuTotalProcessorTime).TotalMilliseconds;
+            var totalMsPassed = (now - _lastCpuCheck).TotalMilliseconds;
+
+            if (totalMsPassed > 0)
+            {
+                // Доля нагрузки процесса: 0..1
+                var cpuUsage = cpuUsedMs / (Environment.ProcessorCount * totalMsPassed);
+                cpuUsage *= 100.0; // в проценты
+
+                if (cpuUsage < 0) cpuUsage = 0;
+                if (cpuUsage > 100) cpuUsage = 100; // нормируем в 0..100
+
+                _lastCpuValue = cpuUsage;
+            }
+
+            _lastCpuCheck = now;
+            _lastCpuTotalProcessorTime = currentCpuTime;
 
             return _lastCpuValue.ToString("F2") + "%";
         }
@@ -1269,8 +1300,16 @@ public class MikroTikUpdateService
 
     public Task<string?> GetFilePathAsync(string path)
     {
-        var fullPath = Path.Combine(_baseFolder, path);
-        if (fullPath.StartsWith(_baseFolder, StringComparison.OrdinalIgnoreCase) &&
+        // Склеиваем и нормализуем путь
+        var combined = Path.Combine(_baseFolder, path);
+        var fullPath = Path.GetFullPath(combined);
+
+        // Гарантируем, что путь реально внутри _baseFolder
+        var rootWithSep =
+            _baseFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+
+        if (fullPath.StartsWith(rootWithSep, StringComparison.OrdinalIgnoreCase) &&
             File.Exists(fullPath))
             return Task.FromResult<string?>(fullPath);
 
