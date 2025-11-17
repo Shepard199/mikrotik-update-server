@@ -5,7 +5,7 @@
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![.NET](https://img.shields.io/badge/.NET-9.0-purple)
 ![License](https://img.shields.io/badge/license-ELv2-orange)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
 
 **Локальный сервер обновлений для устройств MikroTik RouterOS**
 
