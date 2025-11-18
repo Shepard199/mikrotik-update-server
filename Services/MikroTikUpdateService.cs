@@ -954,6 +954,40 @@ public class MikroTikUpdateService
         }
     }
 
+    public IReadOnlyList<string> GetDeletePrefixes()
+    {
+        return LoadDeletePrefixes();
+    }
+
+    public async Task UpdateDeletePrefixesAsync(IEnumerable<string>? prefixes)
+    {
+        prefixes ??= [];
+
+        var normalized = prefixes
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var payload = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["deletePrefixes"] = normalized
+        };
+
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+
+        await File.WriteAllTextAsync(_deleteJsonFile, json);
+
+        _logger.LogInformation(
+            "Updated delete prefixes: {Prefixes}",
+            string.Join(", ", normalized));
+    }
+
+
     private void CleanupZipFile(string zipPath, List<string> deletePrefixes)
     {
         if (deletePrefixes.Count == 0)

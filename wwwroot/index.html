@@ -56,7 +56,7 @@
 
       <div class="sidebar-footer">
         <p id="server-status" class="status-indicator">🔴 Offline</p>
-        <p class="version-text">v1.0.0а</p>
+        <p class="version-text">v1.0.10а</p>
       </div>
     </div>
 
@@ -514,17 +514,15 @@
           <div class="changelog-container">
             <div class="changelog-header">
               <h3>Changelog for Specific Version</h3>
-              <div style="display: flex; gap: 10px; align-items: center">
-                <select
-                  id="version-select"
-                  style="
-                    padding: 8px;
-                    border-radius: 4px;
-                    border: 1px solid #ddd;
-                    background: var(--bg-primary);
-                    color: var(--text-primary);
-                  "
-                >
+              <div
+                style="
+                  display: flex;
+                  gap: 10px;
+                  align-items: center;
+                  flex-wrap: wrap;
+                "
+              >
+                <select id="version-select" class="form-select">
                   <option value="">Select a version...</option>
                 </select>
                 <button
@@ -532,7 +530,7 @@
                   class="btn btn-sm btn-primary"
                   onclick="loadVersionChangelog()"
                 >
-                  📄 Load
+                  🔄 Load
                 </button>
               </div>
             </div>
@@ -627,22 +625,13 @@
 
         <div class="config-section">
           <h3>Server Settings</h3>
-          <h3>Server time zone</h3>
-          <p>Select the time zone for the schedule and logs to work correctly.</p>
+          <p>
+            Select the time zone for the schedule and logs to work correctly.
+          </p>
 
           <div class="form-group">
-            <label for="tzSelect" class="form-label">Time zone:</label>
-            <select
-              id="tzSelect"
-              class="form-select"
-              style="
-                padding: 8px;
-                border-radius: 4px;
-                border: 1px solid #ddd;
-                background: var(--bg-primary);
-                color: var(--text-primary);
-              "
-            ></select>
+            <label for="tzSelect">Time zone:</label>
+            <select id="tzSelect" class="form-select"></select>
           </div>
 
           <div class="form-actions" style="margin-top: 10px">
@@ -651,7 +640,7 @@
               class="btn btn-primary"
               onclick="saveTimeZone()"
             >
-              💾 Save the time zone
+              💾 Save Time Zone
             </button>
             <small
               id="tzStatus"
@@ -661,12 +650,41 @@
         </div>
 
         <div class="config-section">
+          <h3>File Prefixes to Delete</h3>
+          <p>
+            Each prefix on a new line. Extra files matching these prefixes will
+            be deleted from v6 archives.
+          </p>
+          <textarea
+            id="delete-prefixes-input"
+            class="config-textarea"
+            rows="3"
+            placeholder="advanced-tools-&#10;wireless-&#10;dude-"
+          ></textarea>
+
+          <div class="form-actions" style="margin-top: 10px">
+            <button
+              type="button"
+              class="btn btn-primary"
+              onclick="saveDeletePrefixes()"
+            >
+              💾 Save Prefixes
+            </button>
+            <span
+              id="delete-prefixes-status"
+              style="margin-left: 10px; font-size: 12px"
+            ></span>
+          </div>
+        </div>
+
+        <div class="config-section">
           <h3>Setup on MikroTik</h3>
           <p>Add DNS static entry:</p>
           <div class="code-block">
-            <code>
-              /ip dns static add name="upgrade.mikrotik.com" address=YOUR_IP
-            </code>
+            <code
+              >/ip dns static add name="upgrade.mikrotik.com"
+              address=YOUR_IP</code
+            >
           </div>
           <p>Check for updates:</p>
           <div class="code-block">

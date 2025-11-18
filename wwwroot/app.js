@@ -112,7 +112,6 @@ async function loadVersions() {
 }
 
 function updateVersionBadges(data) {
-  // Очищаем версии для отображения в баджах
   const v6Active = data.v6.active
     ? data.v6.active.replace(/[^\d.-]/g, "").trim()
     : "-";
@@ -133,7 +132,6 @@ function updateVersionTable(branch, versions, ...active) {
   tbody.innerHTML = "";
 
   versions.forEach((version) => {
-    // Очищаем версию для сравнения
     const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
     const cleanActive = active.map((a) =>
       a ? a.replace(/[^\d.-]/g, "").trim() : a
@@ -176,7 +174,6 @@ function renderV6Row(version, isActive) {
 }
 
 function renderV7Row(version, isActive, active) {
-  // Очищаем версию от эмодзи для v7 тоже
   const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
   const isFixed = cleanVersion === active[0];
   const isLatest = cleanVersion === active[1];
@@ -206,7 +203,6 @@ function renderV7Row(version, isActive, active) {
 }
 
 async function setVersion(version) {
-  // Очищаем версию от эмодзи
   const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
 
   try {
@@ -232,7 +228,6 @@ async function setVersion(version) {
 }
 
 async function removeVersion(version) {
-  // Очищаем версию от эмодзи
   const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
 
   if (!confirm(`Delete version ${cleanVersion}?`)) return;
@@ -413,7 +408,6 @@ function renderLogEntry(log) {
     ? '<span class="exception-indicator" title="Contains exception">⚠️</span>'
     : "";
 
-  // Берём локальное время, если есть, иначе UTC
   const displayTime = log.timestampLocal || log.timestampUtc || log.timestamp;
 
   return `
@@ -463,7 +457,7 @@ function displayLogStats(stats) {
 
   const rangeText =
     oldest && newest
-      ? `${formatDateTime(oldest)} - ${formatDateTime(newest)}`
+      ? `${formatDate(oldest)} - ${formatDate(newest)}`
       : "No data";
 
   const tzLabel = stats.timeZone || "UTC";
@@ -556,7 +550,6 @@ async function loadSchedule() {
 }
 
 function displaySchedule(config, status) {
-  // Update status card
   const statusBadge = document.getElementById("schedule-status-badge");
   statusBadge.textContent = status.status;
   statusBadge.className = `status-badge ${status.status.toLowerCase()}`;
@@ -574,7 +567,6 @@ function displaySchedule(config, status) {
     ? formatDateTime(status.config.pausedUntil)
     : "Not paused";
 
-  // Update form
   document.getElementById("schedule-enabled").checked = config.enabled;
   document.getElementById("check-time").value = config.checkTime.substring(
     0,
@@ -585,7 +577,6 @@ function displaySchedule(config, status) {
     config.notifyOnCompletion;
   document.getElementById("notify-errors").checked = config.notifyOnError;
 
-  // Update days checkboxes
   document.querySelectorAll('input[name="days"]').forEach((checkbox) => {
     checkbox.checked = config.daysOfWeek.includes(checkbox.value);
   });
@@ -706,7 +697,6 @@ async function loadVersionChangelog() {
     return;
   }
 
-  // Очищаем версию от эмодзи и лишних пробелов
   const cleanVersion = version.replace(/[^\d.-]/g, "").trim();
 
   const contentDiv = document.getElementById("version-changelog-content");
@@ -854,6 +844,103 @@ async function saveAllowedArches() {
 
 /**
  * ============================================================================
+ * DELETE PREFIXES MANAGEMENT
+ * ============================================================================
+ */
+
+async function loadDeletePrefixes() {
+  const textarea = document.getElementById("delete-prefixes-input");
+  const status = document.getElementById("delete-prefixes-status");
+  if (!textarea) return;
+
+  try {
+    const resp = await fetch(`${API_BASE}/settings/delete-prefixes`);
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
+    }
+
+    const prefixes = await resp.json(); // array of strings
+
+    // Display on separate lines for easier editing
+    textarea.value = prefixes.join("\n");
+
+    if (status) {
+      status.textContent =
+        prefixes.length > 0
+          ? `Loaded ${prefixes.length} prefixes`
+          : "No prefixes configured";
+      status.className = "config-status";
+    }
+  } catch (error) {
+    console.error("Error loading delete prefixes:", error);
+    if (status) {
+      status.textContent = `Error loading: ${error.message}`;
+      status.className = "config-status error";
+    }
+  }
+}
+
+async function saveDeletePrefixes() {
+  const textarea = document.getElementById("delete-prefixes-input");
+  const status = document.getElementById("delete-prefixes-status");
+  if (!textarea) return;
+
+  // Parse lines and filter empty ones
+  const prefixes = textarea.value
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  try {
+    const resp = await fetch(`${API_BASE}/settings/delete-prefixes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(prefixes),
+    });
+
+    if (!resp.ok) {
+      let err;
+      try {
+        err = await resp.json();
+      } catch {
+        /* ignore */
+      }
+      throw new Error(err?.message || `HTTP ${resp.status}`);
+    }
+
+    let data = null;
+    try {
+      data = await resp.json();
+    } catch {
+      /* ignore */
+    }
+
+    if (status) {
+      status.textContent =
+        prefixes.length > 0
+          ? `✓ Saved ${prefixes.length} prefix(es)`
+          : "✓ List cleared";
+      status.className = "config-status success";
+    }
+
+    showToast(
+      data?.message || `Saved ${prefixes.length} file prefix(es)`,
+      "success"
+    );
+  } catch (error) {
+    console.error("Error saving delete prefixes:", error);
+    if (status) {
+      status.textContent = `✗ Error: ${error.message}`;
+      status.className = "config-status error";
+    }
+    showToast(`Error saving delete prefixes: ${error.message}`, "error");
+  }
+}
+
+/**
+ * ============================================================================
  * TIMEZONE MANAGEMENT
  * ============================================================================
  */
@@ -873,6 +960,8 @@ async function loadTimeZones() {
     const current = await currentResp.json();
 
     const select = document.getElementById("tzSelect");
+    if (!select) return;
+
     select.innerHTML = "";
 
     zones.forEach((z) => {
@@ -910,14 +999,14 @@ async function saveTimeZone() {
 
     const data = await response.json();
     const statusEl = document.getElementById("tzStatus");
-    statusEl.textContent = `✓ Сохранено: ${data.id}`;
+    statusEl.textContent = `✓ Saved: ${data.id}`;
     statusEl.style.color = "var(--success)";
 
-    showToast(`Часовой пояс установлен: ${data.id}`, "success");
+    showToast(`Time zone set to: ${data.id}`, "success");
   } catch (error) {
     console.error("Error saving timezone:", error);
     const statusEl = document.getElementById("tzStatus");
-    statusEl.textContent = `✗ Ошибка: ${error.message}`;
+    statusEl.textContent = `✗ Error: ${error.message}`;
     statusEl.style.color = "var(--error)";
     showToast(`Error saving timezone: ${error.message}`, "error");
   }
@@ -959,6 +1048,7 @@ function handleTabSwitch(tabName) {
     case "config":
       loadAllowedArches();
       loadTimeZones();
+      loadDeletePrefixes();
       break;
     case "changelog":
       loadGlobalChangelog();
@@ -985,7 +1075,7 @@ function switchChangelogTab(event, tabName) {
     .querySelectorAll(".changelog-tab")
     .forEach((tab) => tab.classList.remove("active"));
   document
-    .querySelectorAll(".changelog-tab")
+    .querySelectorAll(".tab-btn")
     .forEach((btn) => btn.classList.remove("active"));
 
   document.getElementById(tabName).classList.add("active");
@@ -1427,10 +1517,8 @@ function copyVersionToClipboard(version) {
  */
 
 function initializeTheme() {
-  // Берём сохранённую тему, если есть
   const savedTheme = localStorage.getItem("dashboardTheme");
 
-  // Если нет — смотрим системные настройки
   const prefersDark =
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -1442,10 +1530,8 @@ function initializeTheme() {
 function applyTheme(theme) {
   const root = document.documentElement;
 
-  // Атрибут для CSS: :root[data-theme="light"] / :root[data-theme="dark"]
   root.setAttribute("data-theme", theme);
 
-  // Для возможных глобальных стилей на body (если захочешь)
   if (document.body) {
     document.body.classList.remove("theme-dark", "theme-light");
     document.body.classList.add(
@@ -1453,10 +1539,8 @@ function applyTheme(theme) {
     );
   }
 
-  // Сохраняем выбор
   localStorage.setItem("dashboardTheme", theme);
 
-  // Обновляем кнопку переключения, если она есть
   const toggleBtn = document.getElementById("themeToggle");
   if (toggleBtn) {
     const isDark = theme === "dark";

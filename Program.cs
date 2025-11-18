@@ -1,10 +1,13 @@
-using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.FileProviders;
+
 using MikroTik.UpdateServer.Models;
 using MikroTik.UpdateServer.Services;
+
+using System.Runtime.InteropServices;
 
 namespace MikroTik.UpdateServer;
 
@@ -298,6 +301,10 @@ public static class Program
         api.MapPost("/settings/timezone", UpdateTimeZone);
         api.MapGet("/settings/timezone/list", GetTimeZoneList);
 
+        // ===== Settings / Architectures & Delete Prefixes =====
+        api.MapGet("/settings/delete-prefixes", GetDeletePrefixes);
+        api.MapPost("/settings/delete-prefixes", UpdateDeletePrefixes);
+
         // Специальные маршруты для MikroTik обновлений (эмулируют официальные пути)
         app.MapMethods("/routeros/{filename}", ["GET", "HEAD"], ServeMikroTikFile);
         app.MapMethods("/routeros/{version}/{filename}", ["GET", "HEAD"], ServeMikroTikFile);
@@ -327,7 +334,7 @@ public static class Program
             Console.WriteLine(
                 "\n" +
                 "┌────────────────────────────────────────────────────────┐\n" +
-                "│   MikroTik ROS Local Update Server v1.0                │\n" +
+                "│   MikroTik ROS Local Update Server v1.0.10а            │\n" +
                 "│   Powered by Shepard199                                │\n" +
                 "└────────────────────────────────────────────────────────┘\n");
 
@@ -336,6 +343,29 @@ public static class Program
         catch (Exception ex)
         {
             Console.WriteLine($"FATAL ERROR: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
+
+    private static IResult GetDeletePrefixes(MikroTikUpdateService service)
+    {
+        var prefixes = service.GetDeletePrefixes();
+        return Results.Ok(prefixes);
+    }
+
+    private static async Task<IResult> UpdateDeletePrefixes(
+        MikroTikUpdateService service,
+        string[]? prefixes)
+    {
+        try
+        {
+            await service.UpdateDeletePrefixesAsync(prefixes);
+            return Results.Ok(new { message = "Delete prefixes updated successfully" });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(
+                $"Error updating delete prefixes: {ex.Message}",
+                statusCode: 500);
         }
     }
 
