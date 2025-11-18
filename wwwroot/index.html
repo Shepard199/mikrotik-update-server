@@ -1,665 +1,685 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
-        name="description"
-        content="MikroTik RouterOS Update Server Management Dashboard"/>
+      name="description"
+      content="MikroTik RouterOS Update Server Management Dashboard"
+    />
     <title>MikroTik Update Server</title>
-    <link rel="stylesheet" href="/style.css"/>
-</head>
-<body>
-<!-- Sidebar Navigation -->
-<div class="sidebar">
-    <div class="sidebar-header">
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+      <div class="sidebar-header">
         <div>
-            <div class="logo">📦 ROS Update</div>
-            <p class="subtitle">Local Server</p>
+          <div class="logo">📦 ROS Update</div>
+          <p class="subtitle">Local Server</p>
         </div>
         <button
-            id="themeToggle"
-            type="button"
-            class="icon-button"
-            onclick="toggleTheme()"
-            aria-label="Toggle theme">
-            <span class="theme-toggle-icon">🌙</span>
+          id="themeToggle"
+          type="button"
+          class="icon-button"
+          onclick="toggleTheme()"
+          aria-label="Toggle theme"
+        >
+          <span class="theme-toggle-icon">🌙</span>
         </button>
-    </div>
+      </div>
 
-    <nav class="sidebar-nav">
+      <nav class="sidebar-nav">
         <a
-            href="#"
-            class="nav-link active"
-            onclick="switchTab(event, 'dashboard')">
-            📊 Dashboard
-        </a
+          href="#"
+          class="nav-link active"
+          onclick="switchTab(event, 'dashboard')"
         >
+          📊 Dashboard
+        </a>
         <a href="#" class="nav-link" onclick="switchTab(event, 'versions')">
-            📦 Versions
-        </a
-        >
+          📦 Versions
+        </a>
         <a href="#" class="nav-link" onclick="switchTab(event, 'logs')">
-            📋 Logs
-        </a
-        >
+          📋 Logs
+        </a>
         <a href="#" class="nav-link" onclick="switchTab(event, 'schedule')">
-            📅 Schedule
-        </a
-        >
+          📅 Schedule
+        </a>
         <a href="#" class="nav-link" onclick="switchTab(event, 'changelog')">
-            📝 Changelog
-        </a
-        >
+          📝 Changelog
+        </a>
         <a href="#" class="nav-link" onclick="switchTab(event, 'config')">
-            ⚙️ Configuration
-        </a
-        >
-    </nav>
+          ⚙️ Configuration
+        </a>
+      </nav>
 
-    <div class="sidebar-footer">
+      <div class="sidebar-footer">
         <p id="server-status" class="status-indicator">🔴 Offline</p>
         <p class="version-text">v1.0.0а</p>
+      </div>
     </div>
-</div>
 
-<!-- Main Content Area -->
-<div class="main-content">
-<!-- Dashboard Tab -->
-<div id="dashboard" class="tab-pane active">
-    <h2>📊 Dashboard</h2>
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <!-- Dashboard Tab -->
+      <div id="dashboard" class="tab-pane active">
+        <h2>📊 Dashboard</h2>
 
-    <div class="grid-container">
-        <!-- Quick Stats Card -->
-        <div class="card">
+        <div class="grid-container">
+          <!-- Quick Stats Card -->
+          <div class="card">
             <div class="card-header">Quick Stats</div>
             <div class="card-content">
-                <div class="grid-container">
-                    <div class="stat-box">
-                        <div class="stat-number" id="cpuUsage">-</div>
-                        <div class="stat-label">CPU Usage</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number" id="memory">-</div>
-                        <div class="stat-label">Memory</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number" id="disk">-</div>
-                        <div class="stat-label">Disk Used (GB)</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number" id="total-gb">-</div>
-                        <div class="stat-label">Total Downloaded (GB)</div>
-                    </div>
+              <div class="grid-container">
+                <div class="stat-box">
+                  <div class="stat-number" id="cpuUsage">-</div>
+                  <div class="stat-label">CPU Usage</div>
                 </div>
+                <div class="stat-box">
+                  <div class="stat-number" id="memory">-</div>
+                  <div class="stat-label">Memory</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-number" id="disk">-</div>
+                  <div class="stat-label">Disk Used (GB)</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-number" id="total-gb">-</div>
+                  <div class="stat-label">Total Downloaded (GB)</div>
+                </div>
+              </div>
             </div>
-        </div>
+          </div>
 
-        <!-- System Health Card -->
-        <div class="card">
+          <!-- System Health Card -->
+          <div class="card">
             <div class="card-header">System Health</div>
             <div class="card-content">
-                <div class="status-item">
-                    <span class="status-label">Threads:</span>
-                    <span class="status-value" id="threads">-</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Uptime:</span>
-                    <span class="status-value" id="uptime">-</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Last Check:</span>
-                    <span class="status-value" id="last-check">-</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Total Files:</span>
-                    <span class="status-value" id="total-files">-</span>
-                </div>
+              <div class="status-item">
+                <span class="status-label">Threads:</span>
+                <span class="status-value" id="threads">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Uptime:</span>
+                <span class="status-value" id="uptime">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Last Check:</span>
+                <span class="status-value" id="last-check">-</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Total Files:</span>
+                <span class="status-value" id="total-files">-</span>
+              </div>
             </div>
-        </div>
+          </div>
 
-        <!-- Realtime Alerts Card -->
-        <div class="card">
+          <!-- Realtime Alerts Card -->
+          <div class="card">
             <div class="card-header">Realtime Alerts</div>
             <div class="card-content">
-                <div class="status-item">
-                    <span class="status-label">Disk Space:</span>
-                    <span class="status-value" id="alert-disk">OK</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Internet:</span>
-                    <span class="status-value" id="alert-internet">OK</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">Background Jobs:</span>
-                    <span class="status-value" id="alert-jobs">OK</span>
-                </div>
+              <div class="status-item">
+                <span class="status-label">Disk Space:</span>
+                <span class="status-value" id="alert-disk">OK</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Internet:</span>
+                <span class="status-value" id="alert-internet">OK</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Background Jobs:</span>
+                <span class="status-value" id="alert-jobs">OK</span>
+              </div>
             </div>
+          </div>
         </div>
-    </div>
 
-    <!-- Check Updates Section -->
-    <div class="card">
-        <div class="card-header">Update Check & Export</div>
-        <div class="card-content">
+        <!-- Check Updates Section -->
+        <div class="card">
+          <div class="card-header">Update Check & Export</div>
+          <div class="card-content">
             <div style="display: flex; gap: 10px; flex-wrap: wrap">
-                <button class="btn btn-lg" onclick="checkUpdates(event)">
-                    ⟳ Check Updates
-                </button>
-                <button
-                    class="btn btn-lg"
-                    style="background-color: var(--info)"
-                    onclick="exportDashboardData()">
-                    📊 Export Data
-                </button>
-                <button
-                    class="btn btn-lg"
-                    style="background-color: var(--warning)"
-                    onclick="displayLogAnalytics()">
-                    📈 Analytics
-                </button>
+              <button class="btn btn-lg" onclick="checkUpdates(event)">
+                ⟳ Check Updates
+              </button>
+              <button
+                class="btn btn-lg"
+                style="background-color: var(--info)"
+                onclick="exportDashboardData()"
+              >
+                📊 Export Data
+              </button>
+              <button
+                class="btn btn-lg"
+                style="background-color: var(--warning)"
+                onclick="displayLogAnalytics()"
+              >
+                📈 Analytics
+              </button>
             </div>
-            <p
-                style="
-                color: var(--text-secondary);
-                margin-top: 10px;
-                font-size: 13px;
-              ">
-                💡 Tip: Use <strong>Ctrl+R</strong> to refresh current tab or
-                <strong>Ctrl+K</strong> to search logs
-            </p>
+          </div>
         </div>
-    </div>
-</div>
+      </div>
 
-<!-- Versions Tab -->
-<div id="versions" class="tab-pane">
-    <h2>📦 Versions</h2>
+      <!-- Versions Tab -->
+      <div id="versions" class="tab-pane">
+        <h2>📦 Versions</h2>
 
-    <div class="versions-overview">
-        <div class="versions-grid">
+        <div class="versions-overview">
+          <div class="versions-grid">
             <div class="version-badge v6">
-                <div class="badge-title">Active v6</div>
-                <div class="badge-version" id="v6-active">-</div>
+              <div class="badge-title">Active v6</div>
+              <div class="badge-version" id="v6-active">-</div>
             </div>
             <div class="version-badge v7-fixed">
-                <div class="badge-title">Active v7 (Fixed)</div>
-                <div class="badge-version" id="v7-fixed">-</div>
+              <div class="badge-title">Active v7 (Fixed)</div>
+              <div class="badge-version" id="v7-fixed">-</div>
             </div>
             <div class="version-badge v7-latest">
-                <div class="badge-title">Latest v7</div>
-                <div class="badge-version" id="v7-latest">-</div>
+              <div class="badge-title">Latest v7</div>
+              <div class="badge-version" id="v7-latest">-</div>
             </div>
+          </div>
         </div>
-    </div>
 
-    <div class="tabs-bar">
-        <button
+        <div class="tabs-bar">
+          <button
             class="tab-btn active"
-            onclick="switchVersionTab(event, 'v6-tab')">
+            onclick="switchVersionTab(event, 'v6-tab')"
+          >
             v6 Packages
-        </button>
-        <button class="tab-btn" onclick="switchVersionTab(event, 'v7-tab')">
+          </button>
+          <button class="tab-btn" onclick="switchVersionTab(event, 'v7-tab')">
             v7 Packages
-        </button>
-    </div>
+          </button>
+        </div>
 
-    <div id="v6-tab" class="version-tab active">
-        <table class="versions-table">
+        <div id="v6-tab" class="version-tab active">
+          <table class="versions-table">
             <thead>
-            <tr>
+              <tr>
                 <th>Version</th>
                 <th>Status</th>
                 <th>Actions</th>
-            </tr>
+              </tr>
             </thead>
             <tbody id="v6-list">
-            <tr>
+              <tr>
                 <td colspan="3" style="text-align: center; color: #999">
-                    Loading...
+                  Loading...
                 </td>
-            </tr>
+              </tr>
             </tbody>
-        </table>
-    </div>
+          </table>
+        </div>
 
-    <div id="v7-tab" class="version-tab">
-        <table class="versions-table">
+        <div id="v7-tab" class="version-tab">
+          <table class="versions-table">
             <thead>
-            <tr>
+              <tr>
                 <th>Version</th>
                 <th>Type</th>
                 <th>Status</th>
                 <th>Actions</th>
-            </tr>
+              </tr>
             </thead>
             <tbody id="v7-list">
-            <tr>
+              <tr>
                 <td colspan="4" style="text-align: center; color: #999">
-                    Loading...
+                  Loading...
                 </td>
-            </tr>
+              </tr>
             </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Logs Tab -->
-<div id="logs" class="tab-pane">
-    <h2>📋 Log Viewer</h2>
-
-    <div class="logs-controls">
-        <div class="filters-row">
-            <div class="filter-group">
-                <label>Level:</label>
-                <select id="log-level" onchange="loadLogs()">
-                    <option value="">All Levels</option>
-                    <option value="Information">Information</option>
-                    <option value="Warning">Warning</option>
-                    <option value="Error">Error</option>
-                    <option value="Debug">Debug</option>
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label>Search:</label>
-                <input
-                    type="text"
-                    id="log-search"
-                    placeholder="Search in logs..."
-                    oninput="debounceLoadLogs()"/>
-            </div>
-
-            <div class="filter-group">
-                <label>Show:</label>
-                <select id="log-limit" onchange="loadLogs()">
-                    <option value="50">50 entries</option>
-                    <option value="100" selected>100 entries</option>
-                    <option value="200">200 entries</option>
-                    <option value="500">500 entries</option>
-                </select>
-            </div>
+          </table>
         </div>
+      </div>
 
-        <div class="logs-actions">
+      <!-- Logs Tab -->
+      <div id="logs" class="tab-pane">
+        <h2>📋 Log Viewer</h2>
+
+        <div class="logs-controls">
+          <div class="filters-row">
+            <div class="filter-group">
+              <label>Level:</label>
+              <select id="log-level" onchange="loadLogs()">
+                <option value="">All Levels</option>
+                <option value="Information">Information</option>
+                <option value="Warning">Warning</option>
+                <option value="Error">Error</option>
+                <option value="Debug">Debug</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label>Search:</label>
+              <input
+                type="text"
+                id="log-search"
+                placeholder="Search in logs..."
+                oninput="debounceLoadLogs()"
+              />
+            </div>
+
+            <div class="filter-group">
+              <label>Show:</label>
+              <select id="log-limit" onchange="loadLogs()">
+                <option value="50">50 entries</option>
+                <option value="100" selected>100 entries</option>
+                <option value="200">200 entries</option>
+                <option value="500">500 entries</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="logs-actions">
             <button class="btn btn-primary" onclick="loadLogs()">
-                🔄 Refresh
+              🔄 Refresh
             </button>
             <button class="btn btn-secondary" onclick="downloadLogs()">
-                📥 Download Logs
+              📥 Download Logs
             </button>
             <button class="btn btn-secondary" onclick="clearLogFilters()">
-                🗑️ Clear Filters
+              🗑️ Clear Filters
             </button>
             <label class="auto-refresh">
-                <input
-                    type="checkbox"
-                    id="auto-refresh"
-                    onchange="toggleAutoRefresh()"/>
-                Auto-refresh (10s)
+              <input
+                type="checkbox"
+                id="auto-refresh"
+                onchange="toggleAutoRefresh()"
+              />
+              Auto-refresh (10s)
             </label>
+          </div>
         </div>
-    </div>
 
-    <div class="logs-stats" id="logs-stats"></div>
+        <div class="logs-stats" id="logs-stats"></div>
 
-    <div class="logs-container">
-        <div class="logs-header">
+        <div class="logs-container">
+          <div class="logs-header">
             <span class="log-col timestamp">Timestamp</span>
             <span class="log-col level">Level</span>
             <span class="log-col source">Source</span>
             <span class="log-col message">Message</span>
-        </div>
-        <div class="logs-content" id="logs-content">
+          </div>
+          <div class="logs-content" id="logs-content">
             <div class="log-entry">
-                <span class="log-col timestamp">Loading...</span>
-                <span class="log-col level"></span>
-                <span class="log-col source"></span>
-                <span class="log-col message"></span>
+              <span class="log-col timestamp">Loading...</span>
+              <span class="log-col level"></span>
+              <span class="log-col source"></span>
+              <span class="log-col message"></span>
             </div>
+          </div>
         </div>
-    </div>
-</div>
+      </div>
 
-<!-- Schedule Tab -->
-<div id="schedule" class="tab-pane">
-    <h2>📅 Update Schedule</h2>
+      <!-- Schedule Tab -->
+      <div id="schedule" class="tab-pane">
+        <h2>📅 Update Schedule</h2>
 
-    <div class="schedule-status-card">
-        <div class="status-header">
+        <div class="schedule-status-card">
+          <div class="status-header">
             <h3>Schedule Status</h3>
             <span class="status-badge" id="schedule-status-badge">
-                Loading...
-            </span
-            >
+              Loading...
+            </span>
+          </div>
+          <div class="status-details">
+            <div class="status-item">
+              <span class="status-label">Next Check:</span>
+              <span class="status-value" id="next-check-time">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Time Until:</span>
+              <span class="status-value" id="time-until-check">-</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Paused Until:</span>
+              <span class="status-value" id="paused-until">-</span>
+            </div>
+          </div>
         </div>
-        <div class="status-details">
-            <div class="status-item">
-                <span class="status-label">Next Check:</span>
-                <span class="status-value" id="next-check-time">-</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Time Until:</span>
-                <span class="status-value" id="time-until-check">-</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Paused Until:</span>
-                <span class="status-value" id="paused-until">-</span>
-            </div>
-        </div>
-    </div>
 
-    <div class="schedule-config">
-        <h3>Configuration</h3>
+        <div class="schedule-config">
+          <h3>Configuration</h3>
 
-        <form id="schedule-form">
+          <form id="schedule-form">
             <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="schedule-enabled" name="enabled"/>
-                    Enable scheduled updates
+              <label class="checkbox-label">
+                <input type="checkbox" id="schedule-enabled" name="enabled" />
+                Enable scheduled updates
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label>Check Time:</label>
+              <input
+                type="time"
+                id="check-time"
+                name="checkTime"
+                value="02:00"
+              />
+              <small>Server time when updates should be checked</small>
+            </div>
+
+            <div class="form-group">
+              <label>Check Interval (minutes):</label>
+              <input
+                type="number"
+                id="check-interval"
+                name="intervalMinutes"
+                value="60"
+                min="10"
+                max="1440"
+              />
+              <small>How often to check for updates (10–1440 minutes)</small>
+            </div>
+
+            <div class="form-group">
+              <label>Days of Week:</label>
+              <div class="days-selector">
+                <label class="day-checkbox">
+                  <input type="checkbox" name="days" value="Monday" checked />
+                  Mon
                 </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" name="days" value="Tuesday" checked />
+                  Tue
+                </label>
+                <label class="day-checkbox">
+                  <input
+                    type="checkbox"
+                    name="days"
+                    value="Wednesday"
+                    checked
+                  />
+                  Wed
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" name="days" value="Thursday" checked />
+                  Thu
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" name="days" value="Friday" checked />
+                  Fri
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" name="days" value="Saturday" checked />
+                  Sat
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" name="days" value="Sunday" checked />
+                  Sun
+                </label>
+              </div>
             </div>
 
             <div class="form-group">
-                <label>Check Time:</label>
+              <label>Notifications:</label>
+              <label class="checkbox-label">
                 <input
-                    type="time"
-                    id="check-time"
-                    name="checkTime"
-                    value="02:00"/>
-                <small>Server time when updates should be checked</small>
+                  type="checkbox"
+                  id="notify-completion"
+                  name="notifyCompletion"
+                />
+                On completion
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="notify-errors" name="notifyErrors" />
+                On errors
+              </label>
             </div>
 
             <div class="form-group">
-                <label>Check Interval (minutes):</label>
-                <input
-                    type="number"
-                    id="check-interval"
-                    name="intervalMinutes"
-                    value="60"
-                    min="10"
-                    max="1440"/>
-                <small>How often to check for updates (10–1440 minutes)</small>
-            </div>
-
-            <div class="form-group">
-                <label>Days of Week:</label>
-                <div class="days-selector">
-                    <label class="day-checkbox">
-                        <input type="checkbox" name="days" value="Monday" checked/>
-                        Mon
-                    </label
-                    >
-                    <label class="day-checkbox">
-                        <input type="checkbox" name="days" value="Tuesday" checked/>
-                        Tue
-                    </label
-                    >
-                    <label class="day-checkbox">
-                        <input
-                            type="checkbox"
-                            name="days"
-                            value="Wednesday"
-                            checked/>
-                        Wed
-                    </label
-                    >
-                    <label class="day-checkbox">
-                        <input
-                            type="checkbox"
-                            name="days"
-                            value="Thursday"
-                            checked/>
-                        Thu
-                    </label
-                    >
-                    <label class="day-checkbox">
-                        <input type="checkbox" name="days" value="Friday" checked/>
-                        Fri
-                    </label
-                    >
-                    <label class="day-checkbox">
-                        <input
-                            type="checkbox"
-                            name="days"
-                            value="Saturday"
-                            checked/>
-                        Sat
-                    </label
-                    >
-                    <label class="day-checkbox">
-                        <input type="checkbox" name="days" value="Sunday" checked/>
-                        Sun
-                    </label
-                    >
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Notifications:</label>
-                <label class="checkbox-label">
-                    <input
-                        type="checkbox"
-                        id="notify-completion"
-                        name="notifyCompletion"/>
-                    On completion
-                </label>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="notify-errors" name="notifyErrors"/>
-                    On errors
-                </label>
-            </div>
-
-            <div class="form-group">
-                <label>Pause Duration:</label>
-                <select id="pause-duration" name="pauseDurationMinutes">
-                    <option value="60">1 hour</option>
-                    <option value="180">3 hours</option>
-                    <option value="360">6 hours</option>
-                    <option value="720">12 hours</option>
-                    <option value="1440">1 day</option>
-                </select>
+              <label>Pause Duration:</label>
+              <select id="pause-duration" name="pauseDurationMinutes">
+                <option value="60">1 hour</option>
+                <option value="180">3 hours</option>
+                <option value="360">6 hours</option>
+                <option value="720">12 hours</option>
+                <option value="1440">1 day</option>
+              </select>
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    💾 Save Schedule
-                </button>
-                <button
-                    type="button"
-                    class="btn btn-secondary"
-                    onclick="pauseSchedule()">
-                    ⸸ Pause
-                </button>
-                <button
-                    type="button"
-                    class="btn btn-success"
-                    onclick="resumeSchedule()">
-                    ▶️ Resume
-                </button>
+              <button type="submit" class="btn btn-primary">
+                💾 Save Schedule
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onclick="pauseSchedule()"
+              >
+                ⸸ Pause
+              </button>
+              <button
+                type="button"
+                class="btn btn-success"
+                onclick="resumeSchedule()"
+              >
+                ▶️ Resume
+              </button>
             </div>
-        </form>
-    </div>
-</div>
+          </form>
+        </div>
+      </div>
 
-<!-- Changelog Tab -->
-<div id="changelog" class="tab-pane">
-    <h2>📝 Changelog</h2>
+      <!-- Changelog Tab -->
+      <div id="changelog" class="tab-pane">
+        <h2>📝 Changelog</h2>
 
-    <div class="tabs-bar">
-        <button
+        <div class="tabs-bar">
+          <button
             class="tab-btn active"
-            onclick="switchChangelogTab(event, 'global-changelog')">
+            onclick="switchChangelogTab(event, 'global-changelog')"
+          >
             📋 Global
-        </button>
-        <button
+          </button>
+          <button
             class="tab-btn"
-            onclick="switchChangelogTab(event, 'version-changelog')">
+            onclick="switchChangelogTab(event, 'version-changelog')"
+          >
             📄 Version Specific
-        </button>
-        <button
+          </button>
+          <button
             class="tab-btn"
-            onclick="switchChangelogTab(event, 'history')">
+            onclick="switchChangelogTab(event, 'history')"
+          >
             📚 History
-        </button>
-    </div>
+          </button>
+        </div>
 
-    <!-- Global Changelog -->
-    <div id="global-changelog" class="changelog-tab active">
-        <div class="changelog-container">
+        <!-- Global Changelog -->
+        <div id="global-changelog" class="changelog-tab active">
+          <div class="changelog-container">
             <div class="changelog-header">
-                <h3>Global Changelog</h3>
-                <button
-                    type="button"
-                    class="btn btn-sm btn-primary"
-                    onclick="loadGlobalChangelog()">
-                    🔄 Refresh
-                </button>
+              <h3>Global Changelog</h3>
+              <button
+                type="button"
+                class="btn btn-sm btn-primary"
+                onclick="loadGlobalChangelog()"
+              >
+                🔄 Refresh
+              </button>
             </div>
             <div id="global-changelog-content" class="changelog-content">
-                <p style="color: #999">Loading...</p>
+              <p style="color: #999">Loading...</p>
             </div>
+          </div>
         </div>
-    </div>
 
-    <!-- Version Specific Changelog -->
-    <div id="version-changelog" class="changelog-tab">
-        <div class="changelog-container">
+        <!-- Version Specific Changelog -->
+        <div id="version-changelog" class="changelog-tab">
+          <div class="changelog-container">
             <div class="changelog-header">
-                <h3>Changelog for Specific Version</h3>
-                <div style="display: flex; gap: 10px; align-items: center">
-                    <select
-                        id="version-select"
-                        style="
+              <h3>Changelog for Specific Version</h3>
+              <div style="display: flex; gap: 10px; align-items: center">
+                <select
+                  id="version-select"
+                  style="
                     padding: 8px;
                     border-radius: 4px;
                     border: 1px solid #ddd;
                     background: var(--bg-primary);
                     color: var(--text-primary);
-                  ">
-                        <option value="">Select a version...</option>
-                    </select>
-                    <button
-                        type="button"
-                        class="btn btn-sm btn-primary"
-                        onclick="loadVersionChangelog()">
-                        📄 Load
-                    </button>
-                </div>
+                  "
+                >
+                  <option value="">Select a version...</option>
+                </select>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  onclick="loadVersionChangelog()"
+                >
+                  📄 Load
+                </button>
+              </div>
             </div>
             <div id="version-changelog-content" class="changelog-content">
-                <p style="color: #999">Select a version to view its changelog</p>
+              <p style="color: #999">Select a version to view its changelog</p>
             </div>
+          </div>
         </div>
-    </div>
 
-    <!-- History -->
-    <div id="history" class="changelog-tab">
-        <div class="changelog-container">
+        <!-- History -->
+        <div id="history" class="changelog-tab">
+          <div class="changelog-container">
             <div class="changelog-header">
-                <h3>Version History</h3>
-                <button
-                    type="button"
-                    class="btn btn-sm btn-primary"
-                    onclick="loadVersionHistory()">
-                    🔄 Refresh
-                </button>
+              <h3>Version History</h3>
+              <button
+                type="button"
+                class="btn btn-sm btn-primary"
+                onclick="loadVersionHistory()"
+              >
+                🔄 Refresh
+              </button>
             </div>
             <div class="changelog-content">
-                <table class="versions-table">
-                    <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>v6 Stable</th>
-                        <th>v7 Fixed</th>
-                        <th>v7 Stable</th>
-                    </tr>
-                    </thead>
-                    <tbody id="history-list">
-                    <tr>
-                        <td colspan="4" style="text-align: center; color: #999">
-                            Loading...
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
+              <table class="versions-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>v6 Stable</th>
+                    <th>v7 Fixed</th>
+                    <th>v7 Stable</th>
+                  </tr>
+                </thead>
+                <tbody id="history-list">
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: #999">
+                      Loading...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+          </div>
         </div>
-    </div>
-</div>
+      </div>
 
-<!-- Configuration Tab -->
-<div id="config" class="tab-pane">
-    <h2>⚙️ Configuration</h2>
+      <!-- Configuration Tab -->
+      <div id="config" class="tab-pane">
+        <h2>⚙️ Configuration</h2>
 
-    <div class="config-section">
-        <h3>Allowed RouterOS Architectures</h3>
-        <p>
+        <div class="config-section">
+          <h3>Allowed RouterOS Architectures</h3>
+          <p>
             Select which MikroTik RouterOS architectures should be downloaded
             and stored by this server.
-        </p>
+          </p>
 
-        <div class="checkbox-grid" id="arches-container">
+          <div class="checkbox-grid" id="arches-container">
             <label class="checkbox-label">
-                <input type="checkbox" value="arm"/> arm
+              <input type="checkbox" value="arm" /> arm
             </label>
             <label class="checkbox-label">
-                <input type="checkbox" value="arm64"/> arm64
+              <input type="checkbox" value="arm64" /> arm64
             </label>
             <label class="checkbox-label">
-                <input type="checkbox" value="mipsbe"/> mipsbe
+              <input type="checkbox" value="mipsbe" /> mipsbe
             </label>
             <label class="checkbox-label">
-                <input type="checkbox" value="mmips"/> mmips
+              <input type="checkbox" value="mmips" /> mmips
             </label>
             <label class="checkbox-label">
-                <input type="checkbox" value="smips"/> smips
+              <input type="checkbox" value="smips" /> smips
             </label>
             <label class="checkbox-label">
-                <input type="checkbox" value="tile"/> tile
+              <input type="checkbox" value="tile" /> tile
             </label>
             <label class="checkbox-label">
-                <input type="checkbox" value="ppc"/> ppc
+              <input type="checkbox" value="ppc" /> ppc
             </label>
-        </div>
-
-        <div class="form-actions" style="margin-top: 10px">
+          </div>
+          <div class="form-actions" style="margin-top: 10px">
             <button
-                type="button"
-                class="btn btn-primary"
-                onclick="saveAllowedArches()">
-                💾 Save Architectures
+              type="button"
+              class="btn btn-primary"
+              onclick="saveAllowedArches()"
+            >
+              💾 Save Architectures
             </button>
-            <span
-                id="arches-status"
-                style="margin-left: 10px; font-size: 12px">
+            <span id="arches-status" style="margin-left: 10px; font-size: 12px">
             </span>
+          </div>
         </div>
-    </div>
 
-    <div class="config-section">
-        <h3>Setup on MikroTik</h3>
-        <p>Add DNS static entry:</p>
-        <div class="code-block">
-            <code
+        <div class="config-section">
+          <h3>Server Settings</h3>
+          <h3>Server time zone</h3>
+          <p>Select the time zone for the schedule and logs to work correctly.</p>
+
+          <div class="form-group">
+            <label for="tzSelect" class="form-label">Time zone:</label>
+            <select
+              id="tzSelect"
+              class="form-select"
+              style="
+                padding: 8px;
+                border-radius: 4px;
+                border: 1px solid #ddd;
+                background: var(--bg-primary);
+                color: var(--text-primary);
+              "
+            ></select>
+          </div>
+
+          <div class="form-actions" style="margin-top: 10px">
+            <button
+              type="button"
+              class="btn btn-primary"
+              onclick="saveTimeZone()"
             >
-                /ip dns static add name="upgrade.mikrotik.com"
-                address=YOUR_IP
-            </code
-            >
+              💾 Save the time zone
+            </button>
+            <small
+              id="tzStatus"
+              style="margin-left: 10px; font-size: 12px"
+            ></small>
+          </div>
         </div>
-        <p>Check for updates:</p>
-        <div class="code-block">
+
+        <div class="config-section">
+          <h3>Setup on MikroTik</h3>
+          <p>Add DNS static entry:</p>
+          <div class="code-block">
+            <code>
+              /ip dns static add name="upgrade.mikrotik.com" address=YOUR_IP
+            </code>
+          </div>
+          <p>Check for updates:</p>
+          <div class="code-block">
             <code>/system package update check-for-updates</code>
-        </div>
-        <p>Install:</p>
-        <div class="code-block">
+          </div>
+          <p>Install:</p>
+          <div class="code-block">
             <code>/system package update install</code>
+          </div>
         </div>
+      </div>
     </div>
-</div>
-</div>
 
-<script src="/app.js"></script>
-</body>
+    <script src="/app.js"></script>
+  </body>
 </html>

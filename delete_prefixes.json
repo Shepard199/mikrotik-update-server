@@ -2,7 +2,6 @@
   "deletePrefixes": [
     "tr069-client-",
     "lora-",
-    "hotspot-",
     "ups-",
     "iot-",
     "calea-"

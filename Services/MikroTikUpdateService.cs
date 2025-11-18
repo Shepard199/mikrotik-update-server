@@ -305,7 +305,7 @@ public class MikroTikUpdateService
         }
     }
 
-    public Task<string?> GetPackagesCsvPathAsync(string branchVersion)
+    public Task<string?> GetPackagesCsvPathAsync1(string branchVersion)
     {
         if (string.IsNullOrWhiteSpace(branchVersion))
             return Task.FromResult<string?>(null);
@@ -315,6 +315,25 @@ public class MikroTikUpdateService
 
         return Task.FromResult(File.Exists(localPath) ? localPath : null);
     }
+
+    public Task<string?> GetPackagesCsvPathAsync(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return Task.FromResult<string?>(null);
+
+        // Ищем в v7 (основное) и v6 на всякий случай
+        var v7Path = Path.Combine(_baseFolder, "v7", version, "packages.csv");
+        var v6Path = Path.Combine(_baseFolder, "v6", version, "packages.csv");
+
+        string? localPath = null;
+        if (File.Exists(v7Path))
+            localPath = v7Path;
+        else if (File.Exists(v6Path))
+            localPath = v6Path;
+
+        return Task.FromResult(localPath);
+    }
+
 
     private async Task DownloadPackagesCsvForBranchAsync(string branchVersion)
     {
@@ -593,6 +612,12 @@ public class MikroTikUpdateService
         // Скачиваем CHANGELOG для этой версии
         await DownloadChangelogAsync(version, downloadDir);
 
+        // Для RouterOS 7 дополнительно тянем packages.csv в папку версии
+        if (!isV6Extra)
+        {
+            await DownloadPackagesCsvForVersionAsync(version, downloadDir);
+        }
+
         _logger.LogInformation(
             "Version {Version} processing completed. Downloaded: {Success}/{Total}",
             version,
@@ -625,6 +650,64 @@ public class MikroTikUpdateService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to download CHANGELOG for version {Version}", version);
+        }
+    }
+
+    private async Task DownloadPackagesCsvForVersionAsync(string version, string downloadDir)
+    {
+        try
+        {
+            var url = $"https://upgrade.mikrotik.com/routeros/{version}/packages.csv";
+            var localPath = Path.Combine(downloadDir, "packages.csv");
+
+            // Уже есть и не пустой — не трогаем
+            if (File.Exists(localPath) && new FileInfo(localPath).Length > 0)
+            {
+                _logger.LogDebug("packages.csv already exists for version {Version}", version);
+                return;
+            }
+
+            _logger.LogInformation("Checking packages.csv for version {Version} at {Url}", version, url);
+
+            using var request = new HttpRequestMessage(HttpMethod.Head, url);
+            var headResponse = await _httpClient.SendAsync(request);
+
+            // Если файла нет — считаем нормальной ситуацией (не для всех билдов он есть)
+            if (!headResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "packages.csv not available for version {Version} (HTTP {StatusCode}). This is normal for some builds.",
+                    version,
+                    (int)headResponse.StatusCode);
+                return;
+            }
+
+            _logger.LogInformation("Downloading packages.csv for version {Version}", version);
+            var csv = await _httpClient.GetStringAsync(url);
+            await File.WriteAllTextAsync(localPath, csv);
+
+            _logger.LogInformation("Saved packages.csv for version {Version} to {Path}", version, localPath);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning(
+                ex,
+                "packages.csv not found for version {Version}. This is normal for some builds.",
+                version);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Timeout downloading packages.csv for version {Version}",
+                version);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to download packages.csv for version {Version}",
+                version);
         }
     }
 
@@ -1427,7 +1510,7 @@ public class MikroTikUpdateService
     /// <summary>
     ///     Строит карту pointer-файлов с соответствующими версиями
     /// </summary>
-    private Dictionary<string, (string version, long build)> BuildPointerMap(
+    private static Dictionary<string, (string version, long build)> BuildPointerMap(
         string v6Version, long v6Build,
         string v7Fixed, long v7FixedBuild,
         string v7Latest, long v7LatestBuild)
@@ -1439,6 +1522,7 @@ public class MikroTikUpdateService
             ["NEWEST6.stable"] = (v6Version, v6Build),
             ["NEWESTa6.stable"] = (v6Version, v6Build),
             ["NEWESTa6.long-term"] = (v6Version, v6Build),
+            ["NEWEST6.long-term"] = (v6Version, v6Build),
 
             // Upgrade с v6 на v7 — используем v7 latest
             ["NEWEST6.upgrade"] = (v7Latest, v7LatestBuild),

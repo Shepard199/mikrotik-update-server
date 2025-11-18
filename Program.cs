@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.FileProviders;
@@ -13,12 +14,24 @@ public static class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        builder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders =
+                ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+            // сюда добавь внешний прокси, если он есть
+            // options.KnownProxies.Add(IPAddress.Parse("172.27.0.1"));
+        });
+
         // DI
         builder.Services.AddSingleton<MikroTikUpdateService>();
         builder.Services.AddSingleton<ScheduleService>();
         builder.Services.AddHostedService<UpdateCheckService>();
         builder.Services.AddSingleton<ILogStore, InMemoryLogStore>();
         builder.Services.AddSingleton<ILoggerProvider, LogStoreLoggerProvider>();
+
+        // Новый сервис часового пояса
+        builder.Services.AddSingleton<TimeZoneService>();
 
         builder.Services.AddHttpClient("MikroTikDiagnostics", client => { client.Timeout = TimeSpan.FromSeconds(5); });
 
@@ -40,6 +53,7 @@ public static class Program
         });
 
         var app = builder.Build();
+        app.UseForwardedHeaders();
         var logStore = app.Services.GetRequiredService<ILogStore>();
         app.UseExceptionHandler("/error");
 
@@ -63,15 +77,40 @@ public static class Program
             var path = context.Request.Path;
             var method = context.Request.Method;
 
+            // Пытаемся взять оригинальный IP из X-Forwarded-For, если есть
+            var realIp = context.Request.Headers["X-Forwarded-For"].ToString();
+            if (string.IsNullOrWhiteSpace(realIp))
+            {
+                realIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            }
+            else
+            {
+                // Если несколько, берём первый
+                var commaIndex = realIp.IndexOf(',');
+                if (commaIndex > 0)
+                    realIp = realIp[..commaIndex].Trim();
+                else
+                    realIp = realIp.Trim();
+            }
+
+            var remotePort = context.Connection.RemotePort;
+
+            // Логический "серверный" IP — можно зашить или взять из конфигурации
+            var serverIp = context.Connection.LocalIpAddress?.ToString() ?? "unknown";
+            var serverPort = context.Connection.LocalPort;
+
+            var ipInfo = $"{realIp}:{remotePort} -> {serverIp}:{serverPort}";
+
             try
             {
-                await next.Invoke();
+                await next();
+
                 var endTime = DateTime.UtcNow;
                 var duration = endTime - startTime;
                 var statusCode = context.Response.StatusCode;
 
                 Console.WriteLine(
-                    $"[{endTime:yyyy-MM-dd HH:mm:ss}] {method} {path} -> {statusCode} ({duration.TotalMilliseconds:F0}ms)");
+                    $"[{endTime:yyyy-MM-dd HH:mm:ss}] {ipInfo} {method} {path} -> {statusCode} ({duration.TotalMilliseconds:F0}ms)");
 
                 var level = statusCode >= 500
                     ? "Error"
@@ -84,20 +123,22 @@ public static class Program
                     Timestamp = endTime,
                     Level = level,
                     Source = "HTTP",
-                    Message = $"{method} {path} -> {statusCode} ({duration.TotalMilliseconds:F0}ms)"
+                    Message = $"{ipInfo} {method} {path} -> {statusCode} ({duration.TotalMilliseconds:F0}ms)"
                 });
             }
             catch (Exception ex)
             {
                 var errorTime = DateTime.UtcNow;
-                Console.WriteLine($"[{errorTime:yyyy-MM-dd HH:mm:ss}] [ERROR] {method} {path}: {ex.Message}");
+
+                Console.WriteLine(
+                    $"[{errorTime:yyyy-MM-dd HH:mm:ss}] [ERROR] {ipInfo} {method} {path}: {ex.Message}");
 
                 logStore.Add(new LogEntry
                 {
                     Timestamp = errorTime,
                     Level = "Error",
                     Source = "HTTP",
-                    Message = $"{method} {path} -> exception",
+                    Message = $"{ipInfo} {method} {path} -> exception",
                     Exception = ex.ToString()
                 });
 
@@ -105,7 +146,6 @@ public static class Program
             }
         });
 
-        // Безопасные заголовки
         // Безопасные заголовки
         app.Use(async (context, next) =>
         {
@@ -133,6 +173,23 @@ public static class Program
             await next.Invoke();
         });
 
+        app.Use(async (context, next) =>
+        {
+            var tz = context.RequestServices.GetRequiredService<TimeZoneService>();
+
+            if (!context.Response.HasStarted)
+            {
+                var utcNow = DateTime.UtcNow;
+                var localNow = tz.GetLocalNow();
+
+                context.Response.Headers["X-Server-TimeUtc"] = utcNow.ToString("o");
+                context.Response.Headers["X-Server-TimeLocal"] = localNow.ToString("o");
+                context.Response.Headers["X-Server-TimeZoneId"] = tz.Current.Id;
+            }
+
+            await next();
+        });
+
         #region Api
 
         // API
@@ -152,16 +209,61 @@ public static class Program
         api.MapGet("/diagnostics", GetDiagnostics);
 
         // ===== LOGS =====
-        api.MapGet("/logs", (string? level, string? search, int? take, ILogStore store) =>
+        api.MapGet("/logs", (string? level, string? search, int? take, ILogStore store, TimeZoneService tz) =>
         {
             var logs = store.Query(level, search, take ?? 100);
-            return Results.Ok(new {logs});
+
+            // Добавляем локальное время по текущему часовому поясу
+            var projected = logs.Select(l => new
+            {
+                l.Level,
+                l.Source,
+                l.Message,
+                l.Exception,
+                timestampUtc = l.Timestamp,
+                timestampLocal = tz.ConvertFromUtc(l.Timestamp)
+            });
+
+            return Results.Ok(new {logs = projected});
         });
 
-        api.MapGet("/logs/stats", (ILogStore store) =>
+        api.MapGet("/logs/stats", (ILogStore store, TimeZoneService tz) =>
         {
             var stats = store.GetStats();
-            return Results.Ok(stats);
+
+            var oldestUtc = stats.OldestEntry;
+            var newestUtc = stats.NewestEntry;
+
+            if (stats.TotalEntries == 0 || oldestUtc is null || newestUtc is null)
+                return Results.Ok(new
+                {
+                    stats.TotalEntries,
+                    stats.InfoCount,
+                    stats.WarningCount,
+                    stats.ErrorCount,
+                    oldestEntryUtc = oldestUtc,
+                    newestEntryUtc = newestUtc,
+                    oldestEntryLocal = (DateTime?) null,
+                    newestEntryLocal = (DateTime?) null,
+                    timeZone = tz.Current.Id
+                });
+
+            // Здесь уже точно не null
+            var oldestLocal = tz.ConvertFromUtc(oldestUtc.Value);
+            var newestLocal = tz.ConvertFromUtc(newestUtc.Value);
+
+            return Results.Ok(new
+            {
+                stats.TotalEntries,
+                stats.InfoCount,
+                stats.WarningCount,
+                stats.ErrorCount,
+                oldestEntryUtc = oldestUtc,
+                newestEntryUtc = newestUtc,
+                oldestEntryLocal = (DateTime?) oldestLocal,
+                newestEntryLocal = (DateTime?) newestLocal,
+                timeZone = tz.Current.Id
+            });
         });
 
         api.MapGet("/logs/download", (ILogStore store) =>
@@ -178,17 +280,23 @@ public static class Program
         api.MapPost("/schedule/pause", PauseSchedule);
         api.MapPost("/schedule/resume", ResumeSchedule);
 
-
-        // Healthcheck
-        app.MapGet("/health", () => Results.Ok(new
+        // Healthcheck (тут сразу и UTC, и локальное время)
+        app.MapGet("/health", (TimeZoneService tz) => Results.Ok(new
         {
             status = "healthy",
-            timestamp = DateTime.UtcNow
+            timestampUtc = DateTime.UtcNow,
+            timestampLocal = tz.GetLocalNow(),
+            timeZone = tz.Current.Id
         }));
 
         // ===== Settings / Architectures =====
         api.MapGet("/settings/arches", GetAllowedArches);
         api.MapPost("/settings/arches", UpdateAllowedArches);
+
+        // ===== Settings / TimeZone =====
+        api.MapGet("/settings/timezone", GetTimeZone);
+        api.MapPost("/settings/timezone", UpdateTimeZone);
+        api.MapGet("/settings/timezone/list", GetTimeZoneList);
 
         // Специальные маршруты для MikroTik обновлений (эмулируют официальные пути)
         app.MapMethods("/routeros/{filename}", ["GET", "HEAD"], ServeMikroTikFile);
@@ -212,7 +320,6 @@ public static class Program
         app.MapGet("/", () => Results.Redirect("/index.html"));
 
         // Обработка ошибок JSON-эндпоинтом
-
         app.MapGet("/error", HandleError);
 
         try
@@ -252,7 +359,6 @@ public static class Program
             return Results.Problem($"Error updating allowed architectures: {ex.Message}");
         }
     }
-
 
     // Schedule
     private static IResult GetSchedule(ScheduleService scheduleService)
@@ -308,7 +414,8 @@ public static class Program
 
     private static async Task<IResult> GetDiagnostics(
         MikroTikUpdateService service,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        TimeZoneService tz)
     {
         try
         {
@@ -350,7 +457,9 @@ public static class Program
 
             var diagnostics = new
             {
-                timestamp = DateTime.UtcNow,
+                timestampUtc = DateTime.UtcNow,
+                timestampLocal = tz.GetLocalNow(),
+                timeZone = tz.Current.Id,
                 server = new
                 {
                     framework = ".NET " + RuntimeInformation.FrameworkDescription,
@@ -372,7 +481,7 @@ public static class Program
                 {
                     code = "diagnostics_error",
                     message = ex.Message,
-                    timestamp = DateTime.UtcNow
+                    timestampUtc = DateTime.UtcNow
                 },
                 statusCode: 500);
         }
@@ -438,8 +547,7 @@ public static class Program
             }
             else if (filename.Equals("packages.csv", StringComparison.OrdinalIgnoreCase))
             {
-                // Тут version – это ветка, например 7.20
-                Console.WriteLine($"[DEBUG] Looking for packages.csv for branch: {version}");
+                Console.WriteLine($"[DEBUG] Looking for packages.csv for version: {version}");
                 filePath = await service.GetPackagesCsvPathAsync(version);
             }
             else
@@ -779,4 +887,51 @@ public static class Program
 
         return Results.Text(content, "text/plain; charset=utf-8");
     }
+
+    private static IResult GetTimeZone(TimeZoneService tz)
+    {
+        var current = tz.Current;
+        return Results.Ok(new
+        {
+            id = current.Id,
+            displayName = current.DisplayName,
+            baseUtcOffsetMinutes = (int) current.BaseUtcOffset.TotalMinutes
+        });
+    }
+
+    private static IResult GetTimeZoneList(TimeZoneService tz)
+    {
+        var zones = TimeZoneService.GetAllTimeZones();
+        return Results.Ok(zones);
+    }
+
+    private static IResult UpdateTimeZone(TimeZoneService tz, [FromBody] TimeZoneUpdateDto? dto)
+    {
+        if (dto is null || string.IsNullOrWhiteSpace(dto.TimeZoneId))
+            return Results.Json(
+                new {code = "bad_request", message = "TimeZoneId is required"},
+                statusCode: 400);
+
+        try
+        {
+            tz.SetTimeZone(dto.TimeZoneId);
+            var current = tz.Current;
+            return Results.Ok(new
+            {
+                message = "Time zone updated",
+                id = current.Id,
+                displayName = current.DisplayName,
+                baseUtcOffsetMinutes = (int) current.BaseUtcOffset.TotalMinutes
+            });
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return Results.Json(
+                new {code = "timezone_not_found", message = $"Time zone '{dto.TimeZoneId}' not found"},
+                statusCode: 404);
+        }
+    }
+
+    // DTO для смены часового пояса
+    private sealed record TimeZoneUpdateDto(string TimeZoneId);
 }
