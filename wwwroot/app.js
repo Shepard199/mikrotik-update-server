@@ -1104,7 +1104,10 @@ function loadChangelogTabData(tabName) {
 function startPeriodicUpdates() {
   // Status update every 5 seconds
   if (timers.status) clearInterval(timers.status);
-  timers.status = setInterval(loadDashboard, INTERVALS.STATUS);
+  timers.status = setInterval(() => {
+    loadDashboard();
+    checkServerHealth(); // Добавляем проверку здоровья
+  }, INTERVALS.STATUS);
 
   // Versions update every 60 seconds
   if (timers.versions) clearInterval(timers.versions);
@@ -1188,24 +1191,6 @@ function showToast(message, type = "info") {
       }
     }, 300);
   }, 3000);
-}
-
-/**
- * ============================================================================
- * SEARCH & FILTER HELPERS
- * ============================================================================
- */
-
-function searchVersions(query) {
-  const lowerQuery = query.toLowerCase();
-  const rows = document.querySelectorAll("#v6-list tr, #v7-list tr");
-
-  rows.forEach((row) => {
-    const version =
-      row.querySelector("td:first-child strong")?.textContent.toLowerCase() ||
-      "";
-    row.style.display = version.includes(lowerQuery) ? "" : "none";
-  });
 }
 
 /**
@@ -1297,22 +1282,32 @@ function updateAlertsDisplay(alerts) {
   const alertInternet = document.getElementById("alert-internet");
   const alertJobs = document.getElementById("alert-jobs");
 
-  // Reset
-  [alertDisk, alertInternet, alertJobs].forEach((el) => {
+  // Сброс всех алертов на OK
+  const allAlerts = {
+    disk: alertDisk,
+    internet: alertInternet,
+    jobs: alertJobs,
+  };
+
+  Object.values(allAlerts).forEach((el) => {
     if (el) {
-      el.textContent = "OK";
+      el.textContent = "✓ OK";
       el.style.color = "var(--success)";
+      el.title = "All systems operational";
     }
   });
 
-  // Apply alerts
+  // Применяем активные алерты
   alerts.forEach((alert) => {
-    if (alert.message.includes("disk") || alert.message.includes("Disk")) {
-      if (alertDisk) {
-        alertDisk.textContent = "⚠️ Warning";
-        alertDisk.style.color =
-          alert.type === "error" ? "var(--error)" : "var(--warning)";
-      }
+    const targetElement = allAlerts[alert.target];
+    if (targetElement) {
+      const icon = alert.type === "error" ? "✗" : "⚠";
+      targetElement.textContent = `${icon} ${
+        alert.type === "error" ? "Error" : "Warning"
+      }`;
+      targetElement.style.color =
+        alert.type === "error" ? "var(--error)" : "var(--warning)";
+      targetElement.title = alert.message;
     }
   });
 }
@@ -1325,21 +1320,27 @@ function updateAlertsDisplay(alerts) {
 
 function getLogStats() {
   try {
-    const totalEntries = document.querySelector(
-      ".stat-item:first-child .stat-number"
-    );
-    const infoCount = document.querySelector(".stat-item.info .stat-number");
-    const warningCount = document.querySelector(
-      ".stat-item.warning .stat-number"
-    );
-    const errorCount = document.querySelector(".stat-item.error .stat-number");
+    const statsItems = document.querySelectorAll("#logs-stats .stat-item");
 
-    return {
-      total: parseInt(totalEntries?.textContent) || 0,
-      info: parseInt(infoCount?.textContent) || 0,
-      warning: parseInt(warningCount?.textContent) || 0,
-      error: parseInt(errorCount?.textContent) || 0,
-    };
+    let total = 0,
+      info = 0,
+      warning = 0,
+      error = 0;
+
+    statsItems.forEach((item) => {
+      const label =
+        item.querySelector(".stat-label")?.textContent.toLowerCase() || "";
+      const number = parseInt(
+        item.querySelector(".stat-number")?.textContent || "0"
+      );
+
+      if (label.includes("total")) total = number;
+      else if (label.includes("info")) info = number;
+      else if (label.includes("warning")) warning = number;
+      else if (label.includes("error")) error = number;
+    });
+
+    return { total, info, warning, error };
   } catch (error) {
     console.error("Error getting log stats:", error);
     return null;
@@ -1348,22 +1349,162 @@ function getLogStats() {
 
 function displayLogAnalytics() {
   const stats = getLogStats();
-  if (!stats) return;
 
-  const total = stats.total || 1;
+  if (!stats || stats.total === 0) {
+    showToast("No log data available for analysis", "info");
+    return;
+  }
+
+  const total = stats.total || 1; // Избегаем деления на ноль
   const errorPercent = ((stats.error / total) * 100).toFixed(1);
   const warningPercent = ((stats.warning / total) * 100).toFixed(1);
+  const infoPercent = ((stats.info / total) * 100).toFixed(1);
 
-  console.log(`📊 Log Analytics:
-    Total: ${stats.total}
-    Errors: ${stats.error} (${errorPercent}%)
-    Warnings: ${stats.warning} (${warningPercent}%)
-    Info: ${stats.info}`);
+  // Определяем статус здоровья
+  let healthStatus = "Excellent";
+  let healthColor = "var(--success)";
 
+  if (stats.error > stats.warning) {
+    healthStatus = "Critical";
+    healthColor = "var(--error)";
+  } else if (parseFloat(errorPercent) > 5) {
+    healthStatus = "Poor";
+    healthColor = "var(--error)";
+  } else if (parseFloat(warningPercent) > 20) {
+    healthStatus = "Fair";
+    healthColor = "var(--warning)";
+  } else if (parseFloat(warningPercent) > 10) {
+    healthStatus = "Good";
+    healthColor = "var(--info)";
+  }
+
+  // Создаём модальное окно с аналитикой
+  const modal = createAnalyticsModal(stats, {
+    errorPercent,
+    warningPercent,
+    infoPercent,
+    healthStatus,
+    healthColor,
+  });
+
+  document.body.appendChild(modal);
+
+  // Показываем также краткий тост
   showToast(
-    `Errors: ${errorPercent}% | Warnings: ${warningPercent}%`,
-    stats.error > stats.warning ? "error" : "warning"
+    `Health: ${healthStatus} | Errors: ${errorPercent}% | Warnings: ${warningPercent}%`,
+    stats.error > stats.warning
+      ? "error"
+      : stats.warning > stats.info / 2
+      ? "warning"
+      : "success"
   );
+}
+
+function createAnalyticsModal(stats, percentages) {
+  const modal = document.createElement("div");
+  modal.className = "analytics-modal";
+  modal.innerHTML = `
+    <div class="analytics-content">
+      <div class="analytics-header">
+        <h3>📊 Log Analytics Report</h3>
+        <button class="analytics-close" onclick="this.closest('.analytics-modal').remove()">✕</button>
+      </div>
+      <div class="analytics-body">
+        <div class="analytics-health" style="border-color: ${
+          percentages.healthColor
+        }">
+          <div class="health-title">System Health</div>
+          <div class="health-status" style="color: ${
+            percentages.healthColor
+          }">${percentages.healthStatus}</div>
+        </div>
+
+        <div class="analytics-grid">
+          <div class="analytics-stat">
+            <div class="stat-icon">📝</div>
+            <div class="stat-title">Total Entries</div>
+            <div class="stat-value">${stats.total}</div>
+            <div class="stat-percent">100%</div>
+          </div>
+
+          <div class="analytics-stat info">
+            <div class="stat-icon">ℹ️</div>
+            <div class="stat-title">Information</div>
+            <div class="stat-value">${stats.info}</div>
+            <div class="stat-percent">${percentages.infoPercent}%</div>
+          </div>
+
+          <div class="analytics-stat warning">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-title">Warnings</div>
+            <div class="stat-value">${stats.warning}</div>
+            <div class="stat-percent">${percentages.warningPercent}%</div>
+          </div>
+
+          <div class="analytics-stat error">
+            <div class="stat-icon">❌</div>
+            <div class="stat-title">Errors</div>
+            <div class="stat-value">${stats.error}</div>
+            <div class="stat-percent">${percentages.errorPercent}%</div>
+          </div>
+        </div>
+
+        <div class="analytics-recommendations">
+          <h4>💡 Recommendations</h4>
+          <ul>
+            ${generateRecommendations(stats, percentages)}
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return modal;
+}
+
+function generateRecommendations(stats, percentages) {
+  const recommendations = [];
+
+  if (parseFloat(percentages.errorPercent) > 5) {
+    recommendations.push(
+      '<li class="rec-error">⚠️ High error rate detected. Review error logs immediately.</li>'
+    );
+  }
+
+  if (parseFloat(percentages.warningPercent) > 20) {
+    recommendations.push(
+      '<li class="rec-warning">⚠️ Many warnings detected. Consider investigating common issues.</li>'
+    );
+  }
+
+  if (stats.error > stats.warning) {
+    recommendations.push(
+      '<li class="rec-error">⚠️ Errors exceed warnings - system may be unstable.</li>'
+    );
+  }
+
+  if (
+    parseFloat(percentages.errorPercent) < 1 &&
+    parseFloat(percentages.warningPercent) < 5
+  ) {
+    recommendations.push(
+      '<li class="rec-success">✓ System is operating normally with minimal issues.</li>'
+    );
+  }
+
+  if (stats.total > 1000) {
+    recommendations.push(
+      '<li class="rec-info">ℹ️ Large log volume. Consider log rotation or cleanup.</li>'
+    );
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push(
+      '<li class="rec-success">✓ No immediate issues detected.</li>'
+    );
+  }
+
+  return recommendations.join("");
 }
 
 /**
@@ -1428,46 +1569,6 @@ function refreshCurrentTab() {
 
 /**
  * ============================================================================
- * FAVORITES/BOOKMARKS
- * ============================================================================
- */
-
-function addVersionToFavorites(version) {
-  try {
-    const favorites = JSON.parse(
-      localStorage.getItem("favoriteVersions") || "[]"
-    );
-    if (!favorites.includes(version)) {
-      favorites.push(version);
-      localStorage.setItem("favoriteVersions", JSON.stringify(favorites));
-      showToast(`${version} added to favorites`, "success");
-    }
-  } catch (error) {
-    console.error("Error saving favorite:", error);
-  }
-}
-
-function getFavoriteVersions() {
-  try {
-    return JSON.parse(localStorage.getItem("favoriteVersions") || "[]");
-  } catch (error) {
-    console.error("Error loading favorites:", error);
-    return [];
-  }
-}
-
-function markFavoriteVersions() {
-  const favorites = getFavoriteVersions();
-  document.querySelectorAll("#v6-list tr, #v7-list tr").forEach((row) => {
-    const version = row.querySelector("td:first-child strong")?.textContent;
-    if (version && favorites.includes(version)) {
-      row.style.borderLeft = "3px solid var(--primary)";
-    }
-  });
-}
-
-/**
- * ============================================================================
  * ALERTS & NOTIFICATIONS
  * ============================================================================
  */
@@ -1480,12 +1581,79 @@ function setupErrorAlert() {
 }
 
 function checkServerHealth() {
-  const status = document.getElementById("server-status").textContent;
+  const status = document.getElementById("server-status")?.textContent || "";
+
   if (status.includes("Offline")) {
-    showToast("⚠️ Server is offline!", "error");
+    updateAlertsDisplay([
+      { type: "error", message: "Server is offline", target: "internet" },
+    ]);
     return false;
   }
-  return true;
+
+  // Проверяем CPU
+  const cpuText = document.getElementById("cpuUsage")?.textContent || "0%";
+  const cpuPercent = parseInt(cpuText);
+
+  // Проверяем память
+  const memoryText = document.getElementById("memory")?.textContent || "0%";
+  const memoryPercent = parseInt(memoryText);
+
+  // Проверяем диск
+  const diskText = document.getElementById("disk")?.textContent || "0";
+  const diskGB = parseFloat(diskText);
+
+  const alerts = [];
+
+  if (cpuPercent > 80) {
+    alerts.push({
+      type: "error",
+      message: `High CPU usage: ${cpuPercent}%`,
+      target: "jobs",
+    });
+  } else if (cpuPercent > 60) {
+    alerts.push({
+      type: "warning",
+      message: `Elevated CPU usage: ${cpuPercent}%`,
+      target: "jobs",
+    });
+  }
+
+  if (memoryPercent > 85) {
+    alerts.push({
+      type: "error",
+      message: `Critical memory usage: ${memoryPercent}%`,
+      target: "jobs",
+    });
+  } else if (memoryPercent > 70) {
+    alerts.push({
+      type: "warning",
+      message: `High memory usage: ${memoryPercent}%`,
+      target: "jobs",
+    });
+  }
+
+  if (diskGB > 900) {
+    alerts.push({
+      type: "error",
+      message: `Low disk space: ${diskGB} GB used`,
+      target: "disk",
+    });
+  } else if (diskGB > 800) {
+    alerts.push({
+      type: "warning",
+      message: `Disk space warning: ${diskGB} GB used`,
+      target: "disk",
+    });
+  }
+
+  if (alerts.length > 0) {
+    updateAlertsDisplay(alerts);
+    return false;
+  } else {
+    // Сбросить все алерты на OK
+    updateAlertsDisplay([]);
+    return true;
+  }
 }
 
 /**

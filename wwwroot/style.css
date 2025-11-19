@@ -1608,11 +1608,6 @@ h3 {
   outline: none;
 }
 
-/* Muted text */
-.muted {
-  color: var(--text-secondary) !important;
-}
-
 /* Config status message */
 .config-status {
   margin-left: 10px;
@@ -1647,11 +1642,252 @@ h3 {
     font-size: 11px;
     padding: 6px;
     margin-bottom: 8px;
-    rows: 2;
   }
 
   .form-select {
     font-size: 11px;
     padding: 6px;
+  }
+}
+
+/* Analytics Modal */
+.analytics-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+  padding: 20px;
+}
+
+.analytics-content {
+  background: var(--bg-secondary);
+  border: 2px solid var(--primary);
+  border-radius: 12px;
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.analytics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 107, 0, 0.1);
+}
+
+.analytics-header h3 {
+  margin: 0;
+  color: var(--primary);
+  font-size: 20px;
+}
+
+.analytics-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 24px;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.analytics-close:hover {
+  background: var(--error);
+  color: white;
+}
+
+.analytics-body {
+  padding: 20px;
+}
+
+.analytics-health {
+  background: var(--bg-primary);
+  border: 2px solid;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.health-title {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.health-status {
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.analytics-stat {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+
+.analytics-stat:hover {
+  transform: translateY(-4px);
+}
+
+.analytics-stat.info {
+  border-color: var(--info);
+  background: rgba(33, 150, 243, 0.05);
+}
+
+.analytics-stat.warning {
+  border-color: var(--warning);
+  background: rgba(255, 152, 0, 0.05);
+}
+
+.analytics-stat.error {
+  border-color: var(--error);
+  background: rgba(244, 67, 54, 0.05);
+}
+
+.stat-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.stat-title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  color: var(--primary);
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.stat-percent {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.analytics-recommendations {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.analytics-recommendations h4 {
+  color: var(--primary);
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.analytics-recommendations ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.analytics-recommendations li {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.rec-error {
+  background: rgba(244, 67, 54, 0.1);
+  border-left: 3px solid var(--error);
+  color: var(--error);
+}
+
+.rec-warning {
+  background: rgba(255, 152, 0, 0.1);
+  border-left: 3px solid var(--warning);
+  color: var(--warning);
+}
+
+.rec-success {
+  background: rgba(76, 175, 80, 0.1);
+  border-left: 3px solid var(--success);
+  color: var(--success);
+}
+
+.rec-info {
+  background: rgba(33, 150, 243, 0.1);
+  border-left: 3px solid var(--info);
+  color: var(--info);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .analytics-content {
+    max-width: 95%;
+  }
+
+  .analytics-header h3 {
+    font-size: 16px;
+  }
+
+  .health-status {
+    font-size: 24px;
+  }
+
+  .analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .analytics-modal {
+    padding: 10px;
+  }
+
+  .analytics-body {
+    padding: 15px;
+  }
+
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-recommendations li {
+    font-size: 12px;
+    padding: 6px 10px;
   }
 }
